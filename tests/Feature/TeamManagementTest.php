@@ -36,6 +36,18 @@ class TeamManagementTest extends TestCase
         Mail::assertSent(TeamInviteMail::class);
     }
 
+    public function test_invite_email_renders(): void
+    {
+        // Mail::fake skips rendering, so render the body explicitly to catch view bugs.
+        $org = $this->org('medium');
+        $invite = $this->invitation($org, 'render@acme.test', 'editor');
+
+        $html = (new TeamInviteMail($invite, 'https://example.test/accept'))->render();
+
+        $this->assertStringContainsString($org->name, $html);
+        $this->assertStringContainsString('https://example.test/accept', $html);
+    }
+
     public function test_seat_limit_blocks_inviting_beyond_the_plan(): void
     {
         $org = $this->org('free');                 // free = 1 seat

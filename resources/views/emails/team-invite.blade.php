@@ -9,7 +9,7 @@
     </p>
     <p>To accept, open this link and sign in with this email address ({{ $invitation->email }}):</p>
     <p><a href="{{ $acceptUrl }}">{{ $acceptUrl }}</a></p>
-    <p>This invitation expires on {{ $invitation->expires_at->toDayDateString() }}.</p>
+    <p>This invitation expires on {{ $invitation->expires_at->toFormattedDateString() }}.</p>
     <p>If you did not expect this, you can ignore this email.</p>
     <p>DPP Platform</p>
 </body>

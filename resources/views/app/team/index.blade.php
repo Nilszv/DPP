@@ -54,7 +54,7 @@
                         <tr>
                             <td>{{ $invite->email }}</td>
                             <td>{{ $invite->role }}</td>
-                            <td>{{ $invite->expires_at->toDayDateString() }}</td>
+                            <td>{{ $invite->expires_at->toFormattedDateString() }}</td>
                             @if ($canManage)
                                 <td>
                                     <form method="POST" action="{{ route('team.invitations.revoke', $invite) }}">
