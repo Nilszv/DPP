@@ -51,12 +51,16 @@ class AdminController extends Controller
         $data = $request->validate([
             'plan' => ['required', 'exists:plans,key'],
             'published_quota_override' => ['nullable', 'integer', 'min:0'],
+            'price_override' => ['nullable', 'numeric', 'min:0'],
+            'interval_override' => ['nullable', 'in:month,year'],
             'status' => ['required', 'in:active,suspended'],
         ]);
 
         $organization->update([
             'plan' => $data['plan'],
             'published_quota_override' => $data['published_quota_override'] ?? null,
+            'price_override' => $data['price_override'] ?? null,
+            'interval_override' => $data['interval_override'] ?? null,
             'status' => $data['status'],
         ]);
 

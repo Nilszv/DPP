@@ -31,6 +31,28 @@
         </div>
 
         <div class="form-row">
+            <label for="price_override">Price override ({{ config('billing.currency') }})</label>
+            <input id="price_override" name="price_override" type="number" step="0.01" min="0"
+                   value="{{ old('price_override', $organization->price_override) }}">
+            <span class="muted">Custom price for this org (e.g. a negotiated commercial rate). Empty = use the plan's price.</span>
+            @error('price_override')<p class="field-error">{{ $message }}</p>@enderror
+        </div>
+
+        <div class="form-row">
+            <label for="interval_override">Billing interval override</label>
+            <select id="interval_override" name="interval_override">
+                @foreach (['' => 'use plan', 'month' => 'monthly', 'year' => 'yearly'] as $val => $label)
+                    <option value="{{ $val }}" @selected(old('interval_override', $organization->interval_override) === ($val ?: null))>{{ $label }}</option>
+                @endforeach
+            </select>
+            @error('interval_override')<p class="field-error">{{ $message }}</p>@enderror
+        </div>
+
+        <p class="muted">
+            Effective billing: {{ $organization->effectivePrice() === null ? 'custom/contact' : config('billing.currency').' '.$organization->effectivePrice() }}@if ($organization->effectiveInterval()) / {{ $organization->effectiveInterval() }}@endif
+        </p>
+
+        <div class="form-row">
             <label for="status">Status</label>
             <select id="status" name="status">
                 <option value="active" @selected($organization->status === 'active')>active</option>

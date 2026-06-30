@@ -2,10 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\PublishException;
 use App\Models\Organization;
+use App\Models\Passport;
 use App\Models\Plan;
+use App\Models\Product;
+use App\Models\Template;
 use App\Models\User;
+use App\Services\PassportPublisher;
 use Database\Seeders\PlanSeeder;
+use Database\Seeders\TemplateSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -84,12 +90,79 @@ class AdminBackofficeTest extends TestCase
         $this->assertSame(50, $org->fresh()->publishedQuota());
     }
 
+    public function test_is_admin_is_not_mass_assignable(): void
+    {
+        // Attempting to set is_admin via mass assignment must be ignored.
+        $user = User::create([
+            'name' => 'X', 'email' => 'x@example.com', 'email_verified_at' => now(), 'is_admin' => true,
+        ]);
+
+        $this->assertFalse($user->fresh()->isAdmin());
+    }
+
+    public function test_admin_can_set_a_custom_price_and_interval_for_an_org(): void
+    {
+        $org = $this->org('commercial');
+
+        $this->actingAs($this->admin())
+            ->put(route('admin.organizations.update', $org), [
+                'plan' => 'commercial', 'published_quota_override' => null,
+                'price_override' => 199, 'interval_override' => 'year', 'status' => 'active',
+            ])
+            ->assertRedirect();
+
+        $org->refresh();
+        $this->assertSame('199.00', $org->effectivePrice());
+        $this->assertSame('year', $org->effectiveInterval());
+    }
+
+    public function test_suspended_org_is_blocked_from_the_app(): void
+    {
+        $org = $this->org('free');
+        $org->update(['status' => 'suspended']);
+
+        $user = User::create(['name' => 'M', 'email' => 'm@example.com', 'email_verified_at' => now()]);
+        $org->members()->attach($user->id, ['role' => 'owner']);
+        $user->forceFill(['current_organization_id' => $org->id])->save();
+
+        $this->actingAs($user)->get('/app/passports')->assertForbidden();
+    }
+
+    public function test_suspended_org_cannot_publish(): void
+    {
+        $this->seed(TemplateSeeder::class);
+        $org = $this->org('free');
+        $org->update(['status' => 'suspended']);
+
+        $template = Template::where('key', 'generic')->first();
+        $product = Product::create([
+            'organization_id' => $org->id, 'template_id' => $template->id,
+            'name' => 'P', 'category' => 'generic',
+        ]);
+        $passport = Passport::create([
+            'organization_id' => $org->id, 'product_id' => $product->id,
+            'public_id' => (string) Str::uuid(), 'identifier_scheme' => 'self',
+            'status' => 'draft', 'default_locale' => 'lv',
+        ]);
+        $passport->versions()->create([
+            'version_no' => 1,
+            'data' => ['product_name' => 'P', 'manufacturer' => 'Acme'],
+            'content_hash' => 'pending', 'locked' => false,
+        ]);
+
+        $this->expectException(PublishException::class);
+        app(PassportPublisher::class)->publish($passport);
+    }
+
     private function admin(): User
     {
-        return User::create([
+        $user = User::create([
             'name' => 'Admin', 'email' => 'admin.'.Str::lower(Str::random(5)).'@example.com',
-            'email_verified_at' => now(), 'is_admin' => true,
+            'email_verified_at' => now(),
         ]);
+        $user->forceFill(['is_admin' => true])->save();
+
+        return $user;
     }
 
     private function org(string $plan): Organization

@@ -25,7 +25,8 @@ class User extends Authenticatable
         'email',
         'password',
         'current_organization_id',
-        'is_admin',
+        // NOTE: is_admin is intentionally NOT mass-assignable. Set it via forceFill /
+        // the `admin:grant` command only, so it can never be set from request input.
     ];
 
     /** Platform super-admin (back-office), distinct from in-org roles. */

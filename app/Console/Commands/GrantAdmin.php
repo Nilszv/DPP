@@ -23,7 +23,8 @@ class GrantAdmin extends Command
             return self::FAILURE;
         }
 
-        $user->update(['is_admin' => ! $this->option('revoke')]);
+        // is_admin is not mass-assignable on purpose; set it explicitly here.
+        $user->forceFill(['is_admin' => ! $this->option('revoke')])->save();
         $this->info($this->option('revoke')
             ? "Revoked admin from {$email}."
             : "Granted admin to {$email}.");

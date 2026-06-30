@@ -45,10 +45,11 @@ Route::middleware('guest')->group(function () {
         ->middleware('throttle:10,1')->name('login.verify');
 });
 
-// ---- Authenticated platform (/app) ----
-Route::middleware(['auth', 'org.context'])->group(function () {
-    Route::post('/logout', [PasswordlessController::class, 'logout'])->name('logout');
+// Logout only needs auth (a suspended-org user must still be able to log out).
+Route::post('/logout', [PasswordlessController::class, 'logout'])->middleware('auth')->name('logout');
 
+// ---- Authenticated platform (/app) ----
+Route::middleware(['auth', 'org.context', 'org.active'])->group(function () {
     Route::get('/app', function () {
         return view('app.dashboard');
     })->name('dashboard');

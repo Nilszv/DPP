@@ -29,6 +29,10 @@ class PassportPublisher
             return $passport;
         }
 
+        if ($passport->organization->isSuspended()) {
+            throw new PublishException('This organization is suspended and cannot publish passports.');
+        }
+
         $template = $passport->product->template;
         $version = $passport->versions()->orderByDesc('version_no')->first();
 

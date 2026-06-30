@@ -11,7 +11,15 @@ class Organization extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['name', 'slug', 'plan', 'status', 'vat_id', 'custom_domain', 'published_quota_override'];
+    protected $fillable = [
+        'name', 'slug', 'plan', 'status', 'vat_id', 'custom_domain',
+        'published_quota_override', 'price_override', 'interval_override',
+    ];
+
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
+    }
 
     public function members(): BelongsToMany
     {
@@ -56,6 +64,22 @@ class Organization extends Model
     {
         return $this->planModel()?->name
             ?? config("billing.plans.{$this->plan}.name", ucfirst($this->plan));
+    }
+
+    /** Effective price: per-org override -> plan price. null = custom/contact (unset). */
+    public function effectivePrice(): ?string
+    {
+        if ($this->price_override !== null) {
+            return $this->price_override;
+        }
+
+        return $this->planModel()?->price;
+    }
+
+    /** Effective billing interval: per-org override -> plan interval. */
+    public function effectiveInterval(): ?string
+    {
+        return $this->interval_override ?? $this->planModel()?->interval;
     }
 
     public function publishedCount(): int
