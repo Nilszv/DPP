@@ -89,7 +89,7 @@ passport page. No payments, no CSS.
 - ⏸️ Styling / design system (designer fills in SCSS over the plain semantic HTML)
 - ⏸️ WordPress public marketing site at `/`, platform mounted at `/login` + `/app` + `/p`
 - ✅ Transactional email (SMTP configured and verified) - currently sends synchronously; move to queued in prod
-- ⬜ **Automated test suite** + a Postgres test database (our migrations use Postgres-only features: partitioning, partial indexes - so tests cannot run on the default sqlite). Needed to assert tenant isolation and auth flows.
+- ✅ **Automated test suite** + Postgres test database + GitHub Actions CI (done in the code-review remediation above). Expand coverage as features land.
 - ⏸️ GDPR: DPA, export, erasure path for lifecycle personal data
 - ⏸️ Legal role decision: generic host vs. ESPR "DPP service provider"
 

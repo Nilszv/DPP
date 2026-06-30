@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\LoginCode;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -52,29 +53,35 @@ class LoginCodeService
     {
         $email = strtolower(trim($email));
 
-        $record = LoginCode::where('email', $email)
-            ->whereNull('consumed_at')
-            ->orderByDesc('created_at')
-            ->first();
+        // Lock the active code row for the duration of the check so two simultaneous
+        // verifies of the same correct code cannot both succeed. The second request blocks
+        // until the first consumes the code, then sees consumed_at set and finds no active row.
+        return DB::transaction(function () use ($email, $code) {
+            $record = LoginCode::where('email', $email)
+                ->whereNull('consumed_at')
+                ->orderByDesc('created_at')
+                ->lockForUpdate()
+                ->first();
 
-        if (! $record || $record->isExpired()) {
-            return false;
-        }
+            if (! $record || $record->isExpired()) {
+                return false;
+            }
 
-        if ($record->attempts >= self::MAX_ATTEMPTS) {
-            $record->update(['consumed_at' => Carbon::now()]);   // burn it
+            if ($record->attempts >= self::MAX_ATTEMPTS) {
+                $record->update(['consumed_at' => Carbon::now()]);   // burn it
 
-            return false;
-        }
+                return false;
+            }
 
-        $record->increment('attempts');
+            $record->increment('attempts');
 
-        if (! Hash::check($code, $record->code_hash)) {
-            return false;
-        }
+            if (! Hash::check($code, $record->code_hash)) {
+                return false;
+            }
 
-        $record->update(['consumed_at' => Carbon::now()]);
+            $record->update(['consumed_at' => Carbon::now()]);
 
-        return true;
+            return true;
+        });
     }
 }

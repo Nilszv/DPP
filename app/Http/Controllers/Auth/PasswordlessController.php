@@ -125,35 +125,38 @@ class PasswordlessController extends Controller
             return $user;
         }
 
-        return DB::transaction(function () use ($email) {
-            $name = Str::of($email)->before('@')->headline()->toString() ?: 'New user';
+        try {
+            return DB::transaction(function () use ($email) {
+                $name = Str::of($email)->before('@')->headline()->toString() ?: 'New user';
 
-            try {
                 $user = User::create([
                     'name' => $name,
                     'email' => $email,
                     'email_verified_at' => now(),   // verified by the code itself
                 ]);
-            } catch (QueryException $e) {
-                // Lost the race: another request already created this user (+ its org).
-                if ($this->isUniqueViolation($e)) {
-                    return User::where('email', $email)->firstOrFail();
-                }
-                throw $e;
+
+                $org = Organization::create([
+                    'name' => $name."'s organization",
+                    'slug' => Str::slug(Str::before($email, '@')).'-'.Str::lower(Str::random(6)),
+                    'plan' => 'free',
+                    'status' => 'active',
+                ]);
+
+                $org->members()->attach($user->id, ['role' => 'owner']);
+                $user->update(['current_organization_id' => $org->id]);
+
+                return $user;
+            });
+        } catch (QueryException $e) {
+            // Lost the concurrent first-login race. On Postgres the unique-email violation
+            // aborts and rolls back the WHOLE transaction, so the re-fetch must happen out
+            // here, after rollback -- not inside the (now dead) transaction. The winner has
+            // committed the user + org, so it is safe to read.
+            if ($this->isUniqueViolation($e)) {
+                return User::where('email', $email)->firstOrFail();
             }
-
-            $org = Organization::create([
-                'name' => $name."'s organization",
-                'slug' => Str::slug(Str::before($email, '@')).'-'.Str::lower(Str::random(6)),
-                'plan' => 'free',
-                'status' => 'active',
-            ]);
-
-            $org->members()->attach($user->id, ['role' => 'owner']);
-            $user->update(['current_organization_id' => $org->id]);
-
-            return $user;
-        });
+            throw $e;
+        }
     }
 
     private function isUniqueViolation(QueryException $e): bool
