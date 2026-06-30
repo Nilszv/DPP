@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Keep monthly partitions ahead of the boundary so inserts never miss a partition.
 Schedule::command('partitions:ensure')->monthlyOn(1, '00:30');
+
+// Clean up expired, unaccepted team invitations.
+Schedule::command('invitations:prune')->daily();

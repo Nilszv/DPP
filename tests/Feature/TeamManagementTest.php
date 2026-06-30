@@ -122,6 +122,43 @@ class TeamManagementTest extends TestCase
         $this->assertFalse($org->members()->whereKey($editor->id)->exists());
     }
 
+    public function test_expired_invitation_does_not_consume_a_seat(): void
+    {
+        $org = $this->org('medium');                 // 3 seats
+        $this->member($org, 'owner', 'owner@acme.test');  // uses 1
+        $this->expiredInvitation($org, 'old@acme.test', 'viewer');
+
+        $this->assertSame(1, $org->usedSeats());     // the expired invite does not count
+        $this->assertTrue($org->hasSeatAvailable());
+    }
+
+    public function test_can_reinvite_after_an_invitation_expires(): void
+    {
+        Mail::fake();
+        $org = $this->org('medium');
+        $owner = $this->member($org, 'owner', 'owner@acme.test');
+        $this->expiredInvitation($org, 'again@acme.test', 'viewer');
+
+        $this->actingAs($owner)
+            ->post(route('team.invite'), ['email' => 'again@acme.test', 'role' => 'editor'])
+            ->assertSessionHas('status');
+
+        // The stale invite is replaced by a fresh live one.
+        $this->assertSame(1, $org->pendingInvitations()->where('email', 'again@acme.test')->count());
+    }
+
+    public function test_prune_deletes_expired_invitations(): void
+    {
+        $org = $this->org('medium');
+        $this->expiredInvitation($org, 'old@acme.test', 'viewer');
+        $this->invitation($org, 'live@acme.test', 'viewer');
+
+        $this->artisan('invitations:prune')->assertSuccessful();
+
+        $this->assertDatabaseMissing('invitations', ['email' => 'old@acme.test']);
+        $this->assertDatabaseHas('invitations', ['email' => 'live@acme.test']);
+    }
+
     public function test_user_can_switch_between_their_orgs(): void
     {
         $a = $this->org('medium');
@@ -158,6 +195,14 @@ class TeamManagementTest extends TestCase
         return Invitation::create([
             'organization_id' => $org->id, 'email' => $email, 'role' => $role,
             'token' => Str::random(48), 'expires_at' => now()->addDays(7),
+        ]);
+    }
+
+    private function expiredInvitation(Organization $org, string $email, string $role): Invitation
+    {
+        return Invitation::create([
+            'organization_id' => $org->id, 'email' => $email, 'role' => $role,
+            'token' => Str::random(48), 'expires_at' => now()->subDay(),
         ]);
     }
 }

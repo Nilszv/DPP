@@ -70,9 +70,10 @@ class Organization extends Model
         return $this->hasMany(Invitation::class);
     }
 
+    /** Live (unaccepted, unexpired) invitations. Expired ones do not consume a seat. */
     public function pendingInvitations(): HasMany
     {
-        return $this->invitations()->whereNull('accepted_at');
+        return $this->invitations()->whereNull('accepted_at')->where('expires_at', '>', now());
     }
 
     /** Team-seat limit (per-org override -> plan -> unlimited). */

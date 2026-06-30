@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Invitation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Accepting a team invitation. Auth-only (not behind onboarding) so a brand-new invitee can
@@ -33,13 +34,18 @@ class InvitationController extends Controller
         $org = $invitation->organization;
         $user = $request->user();
 
-        if (! $org->members()->whereKey($user->id)->exists()) {
-            abort_unless($org->hasSeatAvailable(), 403, 'This organization has no seats available.');
-            $org->members()->attach($user->id, ['role' => $invitation->role]);
-        }
+        // Serialize per org so two concurrent accepts cannot both pass the seat check.
+        DB::transaction(function () use ($org, $user, $invitation) {
+            DB::statement('SELECT pg_advisory_xact_lock(?, hashtext(?))', [2, $org->id]);
 
-        $invitation->update(['accepted_at' => now()]);
-        $user->forceFill(['current_organization_id' => $org->id])->save();
+            if (! $org->members()->whereKey($user->id)->exists()) {
+                abort_unless($org->hasSeatAvailable(), 403, 'This organization has no seats available.');
+                $org->members()->attach($user->id, ['role' => $invitation->role]);
+            }
+
+            $invitation->update(['accepted_at' => now()]);
+            $user->forceFill(['current_organization_id' => $org->id])->save();
+        });
 
         return redirect()->route('dashboard')->with('status', 'You have joined '.$org->name.'.');
     }
