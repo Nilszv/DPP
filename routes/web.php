@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\PasswordlessController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\PassportController;
 use App\Http\Controllers\ResolverController;
 use Illuminate\Support\Facades\DB;
@@ -59,6 +60,10 @@ Route::middleware(['auth', 'org.context'])->group(function () {
     Route::put('/app/passports/{passport}', [PassportController::class, 'update'])->name('passports.update');
     Route::post('/app/passports/{passport}/publish', [PassportController::class, 'publish'])->name('passports.publish');
     Route::get('/app/passports/{passport}/qr', [PassportController::class, 'qr'])->name('passports.qr');
+
+    // Plan & billing (manual mode until Stripe is configured).
+    Route::get('/app/billing', [BillingController::class, 'index'])->name('billing.index');
+    Route::post('/app/billing/switch', [BillingController::class, 'switchPlan'])->name('billing.switch');
 });
 
 // ---- Public passport resolver (QR scan target, no auth) ----

@@ -32,7 +32,7 @@ passport page. No payments, no CSS.
 - ✅ **SMTP configured** (reused veebimajutus.ee / info@vdisain.lv from existing projects). Real send verified.
 - ✅ Tenant-context middleware (`org.context` -> `SetCurrentOrganization`) binds current org so `OrganizationScope` isolates tenant queries on `/app`.
 - ✅ Tenant isolation verified by automated tests (scope hides other tenants, cross-tenant id lookup blocked, stale-org middleware fallback)
-- ⬜ Organization roles enforced in UI/policies (Owner/Admin/Editor/Viewer) - roles stored, not yet gated
+- ✅ Organization roles enforced via `PassportPolicy` (Owner/Admin/Editor/Viewer): editors+ create/edit/publish, managers (owner/admin) delete + change plan, viewers read-only. `User::roleInCurrentOrg()`. Verified by tests.
 - ✅ Plan + quota enforcement server-side (Free=1 published, Medium=5, Commercial=custom) - enforced on publish in `PassportPublisher` (concurrency-safe per-org advisory lock); see DPP product layer below
 
 ### Code review remediation (2026-06-30, external review)
@@ -66,11 +66,12 @@ passport page. No payments, no CSS.
 
 ---
 
-## Slice 2 - Billing  ⏸️
-- ⏸️ Stripe Cashier subscriptions (monthly/annual, proration)
+## Slice 2 - Billing
+- ✅ **Billing abstraction** (`App\Billing\BillingProvider`) with a **manual** driver - plan switch with no payment, so the plan/upgrade/quota flow works before any Stripe account exists. Driver chosen by `BILLING_DRIVER` (manual|stripe). Plan catalogue in `config/billing.php` (single source of truth for quotas/pricing). Plan page at `/app/billing`, owner/admin-gated. Verified by tests.
+- ⏸️ **Stripe** driver (`StripeBillingProvider` via Cashier): add when a Stripe account exists, set keys, flip `BILLING_DRIVER=stripe`. Placeholders already in config + `.env.example`. UI/plans/quota do not change.
 - ⏸️ EU VAT handling (OSS, reverse charge), compliant invoices
 - ⏸️ Dunning / failed-payment / grace period
-- ⏸️ **Lapse policy** for published DPPs after cancellation (REQUIRED before real launch - Free allows published, so the 10-year duty applies to churned free users)
+- ⏸️ **Lapse policy** for published DPPs after cancellation (REQUIRED before real launch - Free allows published, so the 10-year duty applies to churned free users). Manual downgrade currently keeps existing published passports and only gates NEW publishes.
 
 ## Slice 3 - Compliance depth  ⏸️
 - ⏸️ Tiered access views (repairer / recycler / authority / customs) - mechanism stubbed in Slice 1

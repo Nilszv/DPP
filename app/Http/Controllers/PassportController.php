@@ -22,6 +22,7 @@ class PassportController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', Passport::class);
         $passports = Passport::with('product')->latest()->get();
 
         return view('app.passports.index', compact('passports'));
@@ -29,11 +30,14 @@ class PassportController extends Controller
 
     public function create()
     {
+        $this->authorize('create', Passport::class);
+
         return view('app.passports.create', ['templates' => $this->availableTemplates()]);
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', Passport::class);
         $data = $request->validate([
             'product_name' => ['required', 'string', 'max:255'],
             'template_id' => ['required', 'string'],
@@ -74,6 +78,7 @@ class PassportController extends Controller
 
     public function edit(Passport $passport)
     {
+        $this->authorize('update', $passport);
         if ($passport->isPublished()) {
             return redirect()->route('passports.show', $passport)
                 ->with('error', 'Published passports are locked. Versioned editing comes later.');
@@ -91,6 +96,7 @@ class PassportController extends Controller
 
     public function update(Request $request, Passport $passport)
     {
+        $this->authorize('update', $passport);
         if ($passport->isPublished()) {
             return redirect()->route('passports.show', $passport)
                 ->with('error', 'Published passports are locked.');
@@ -116,6 +122,7 @@ class PassportController extends Controller
 
     public function show(Passport $passport)
     {
+        $this->authorize('view', $passport);
         $passport->load('product.template', 'currentVersion');
 
         return view('app.passports.show', ['passport' => $passport]);
@@ -123,6 +130,7 @@ class PassportController extends Controller
 
     public function publish(Passport $passport, PassportPublisher $publisher)
     {
+        $this->authorize('publish', $passport);
         try {
             $publisher->publish($passport);
         } catch (PublishException $e) {
@@ -135,6 +143,8 @@ class PassportController extends Controller
 
     public function qr(Passport $passport, QrService $qr)
     {
+        $this->authorize('view', $passport);
+
         return response($qr->svg($passport->resolverUrl()), 200, [
             'Content-Type' => 'image/svg+xml',
         ]);

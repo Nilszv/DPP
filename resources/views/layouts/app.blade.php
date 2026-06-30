@@ -12,6 +12,7 @@
         <strong class="app-title"><a href="{{ route('dashboard') }}">DPP Platform</a></strong>
         <nav class="app-nav" aria-label="Primary">
             <a href="{{ route('passports.index') }}">Passports</a>
+            <a href="{{ route('billing.index') }}">Plan</a>
             <span class="muted">{{ auth()->user()?->email }}</span>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf

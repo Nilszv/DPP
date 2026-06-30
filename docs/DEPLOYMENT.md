@@ -37,7 +37,8 @@ DPP-specific:
 - `PASSPORT_DEFAULT_LOCALE` - default Member-State language for the public passport layer.
 
 Added in later slices (placeholder so migration knows they're coming):
-- Slice 2: `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET`, `CASHIER_*`, VAT config.
+- `BILLING_DRIVER` - `manual` (no payment; plan switches instantly) until Stripe is set up, then `stripe`.
+- Slice 2 (when Stripe added): `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MEDIUM`, `CASHIER_*`, VAT config.
 - Slice 3: registry push credentials, backup-provider creds.
 - `SCAN_IP_HMAC_KEY` - keyed HMAC secret for hashing scanner IPs (GDPR). **Set before any
   real scan traffic; rotating it is intentional.**

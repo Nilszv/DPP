@@ -41,6 +41,26 @@ class User extends Authenticatable
         $this->attributes['email'] = strtolower(trim($value));
     }
 
+    /** This user's role in the current organization (owner|admin|editor|viewer), or null. */
+    public function roleInCurrentOrg(): ?string
+    {
+        $orgId = app()->bound('currentOrganizationId')
+            ? app('currentOrganizationId')
+            : $this->current_organization_id;
+
+        if (! $orgId) {
+            return null;
+        }
+
+        return $this->organizations()->whereKey($orgId)->first()?->pivot->role;
+    }
+
+    /** Owner/Admin may manage the org (billing, members). */
+    public function canManageOrg(): bool
+    {
+        return in_array($this->roleInCurrentOrg(), ['owner', 'admin'], true);
+    }
+
     /**
      * The org id this user may currently act in, VERIFIED against live membership.
      * Returns the stored current org if the user still belongs to it; otherwise the first

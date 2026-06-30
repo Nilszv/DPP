@@ -13,13 +13,6 @@ class Organization extends Model
 
     protected $fillable = ['name', 'slug', 'plan', 'status', 'vat_id', 'custom_domain'];
 
-    /** Published-DPP quota per plan (server-side enforced; UI is never the gate). */
-    public const PUBLISHED_QUOTA = [
-        'free' => 1,
-        'medium' => 5,
-        'commercial' => PHP_INT_MAX,   // custom / high volume
-    ];
-
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class)->withPivot('role')->withTimestamps();
@@ -35,8 +28,20 @@ class Organization extends Model
         return $this->hasMany(Passport::class);
     }
 
+    /** Published-DPP quota for this org's plan (server-side enforced; UI is never the gate). */
     public function publishedQuota(): int
     {
-        return self::PUBLISHED_QUOTA[$this->plan] ?? self::PUBLISHED_QUOTA['free'];
+        return (int) (config("billing.plans.{$this->plan}.published_quota")
+            ?? config('billing.plans.free.published_quota'));
+    }
+
+    public function planName(): string
+    {
+        return config("billing.plans.{$this->plan}.name", ucfirst($this->plan));
+    }
+
+    public function publishedCount(): int
+    {
+        return $this->passports()->where('status', 'published')->count();
     }
 }
