@@ -25,7 +25,14 @@ class User extends Authenticatable
         'email',
         'password',
         'current_organization_id',
+        'is_admin',
     ];
+
+    /** Platform super-admin (back-office), distinct from in-org roles. */
+    public function isAdmin(): bool
+    {
+        return (bool) $this->is_admin;
+    }
 
     /** Organizations this user belongs to, with their in-org role. */
     public function organizations(): BelongsToMany
@@ -99,6 +106,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
         ];
     }
 }

@@ -3,20 +3,18 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title', 'DPP Platform')</title>
-    {{-- Baseline layout only (public/css/app.css). A designer replaces it with the real design. --}}
+    <title>@yield('title', 'Admin - DPP Platform')</title>
+    {{-- Baseline layout only (public/css/app.css). A designer replaces it later. --}}
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
 </head>
-<body class="page">
+<body class="page page-admin">
     <header class="app-header">
-        <strong class="app-title"><a href="{{ route('dashboard') }}">DPP Platform</a></strong>
-        <nav class="app-nav" aria-label="Primary">
-            <a href="{{ route('passports.index') }}">Passports</a>
-            <a href="{{ route('billing.index') }}">Plan</a>
-            @if (auth()->user()?->isAdmin())
-                <a href="{{ route('admin.overview') }}">Admin</a>
-            @endif
-            <span class="muted">{{ auth()->user()?->email }}</span>
+        <strong class="app-title"><a href="{{ route('admin.overview') }}">DPP Admin</a></strong>
+        <nav class="app-nav" aria-label="Admin">
+            <a href="{{ route('admin.overview') }}">Overview</a>
+            <a href="{{ route('admin.organizations') }}">Organizations</a>
+            <a href="{{ route('admin.plans.index') }}">Plans</a>
+            <a href="{{ route('dashboard') }}">Back to app</a>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit">Log out</button>

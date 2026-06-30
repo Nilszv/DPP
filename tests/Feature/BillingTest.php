@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Organization;
 use App\Models\User;
+use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -11,6 +12,12 @@ use Tests\TestCase;
 class BillingTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(PlanSeeder::class);   // plans are DB-driven; selection validates against them
+    }
 
     public function test_owner_can_switch_plan_in_manual_mode(): void
     {

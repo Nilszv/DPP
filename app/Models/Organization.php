@@ -11,7 +11,7 @@ class Organization extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['name', 'slug', 'plan', 'status', 'vat_id', 'custom_domain'];
+    protected $fillable = ['name', 'slug', 'plan', 'status', 'vat_id', 'custom_domain', 'published_quota_override'];
 
     public function members(): BelongsToMany
     {
@@ -28,16 +28,34 @@ class Organization extends Model
         return $this->hasMany(Passport::class);
     }
 
-    /** Published-DPP quota for this org's plan (server-side enforced; UI is never the gate). */
+    /** The DB-driven plan for this org, if present. */
+    public function planModel(): ?Plan
+    {
+        return Plan::where('key', $this->plan)->first();
+    }
+
+    /**
+     * Published-DPP quota (server-side enforced; UI is never the gate). Precedence:
+     * per-org override -> DB plan -> config fallback. null quota = unlimited.
+     */
     public function publishedQuota(): int
     {
+        if ($this->published_quota_override !== null) {
+            return (int) $this->published_quota_override;
+        }
+
+        if ($plan = $this->planModel()) {
+            return $plan->effectiveQuota();
+        }
+
         return (int) (config("billing.plans.{$this->plan}.published_quota")
             ?? config('billing.plans.free.published_quota'));
     }
 
     public function planName(): string
     {
-        return config("billing.plans.{$this->plan}.name", ucfirst($this->plan));
+        return $this->planModel()?->name
+            ?? config("billing.plans.{$this->plan}.name", ucfirst($this->plan));
     }
 
     public function publishedCount(): int

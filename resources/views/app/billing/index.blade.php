@@ -31,29 +31,29 @@
                 <tr><th>Plan</th><th>Price</th><th>Published quota</th><th></th></tr>
             </thead>
             <tbody>
-                @foreach ($plans as $key => $plan)
+                @foreach ($plans as $plan)
                     <tr>
-                        <td>{{ $plan['name'] }}</td>
+                        <td>{{ $plan->name }}</td>
                         <td>
-                            @if ($plan['price'] === null)
+                            @if ($plan->price === null)
                                 Custom
-                            @elseif ($plan['price'] == 0)
+                            @elseif ($plan->price == 0)
                                 Free
                             @else
-                                {{ $currency }} {{ $plan['price'] }}@if ($plan['interval']) / {{ $plan['interval'] }}@endif
+                                {{ $currency }} {{ $plan->price }}@if ($plan->interval) / {{ $plan->interval }}@endif
                             @endif
                         </td>
-                        <td>{{ $plan['published_quota'] === PHP_INT_MAX ? 'Unlimited' : $plan['published_quota'] }}</td>
+                        <td>{{ $plan->published_quota === null ? 'Unlimited' : $plan->published_quota }}</td>
                         <td>
-                            @if ($key === $org->plan)
+                            @if ($plan->key === $org->plan)
                                 <span class="muted">Current</span>
-                            @elseif ($key === 'commercial')
+                            @elseif ($plan->price === null)
                                 <span class="muted">Contact sales</span>
                             @elseif ($canManage)
                                 <form method="POST" action="{{ route('billing.switch') }}">
                                     @csrf
-                                    <input type="hidden" name="plan" value="{{ $key }}">
-                                    <button type="submit">Switch to {{ $plan['name'] }}</button>
+                                    <input type="hidden" name="plan" value="{{ $plan->key }}">
+                                    <button type="submit">Switch to {{ $plan->name }}</button>
                                 </form>
                             @endif
                         </td>

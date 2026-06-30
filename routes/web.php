@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Auth\PasswordlessController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\PassportController;
@@ -64,6 +66,21 @@ Route::middleware(['auth', 'org.context'])->group(function () {
     // Plan & billing (manual mode until Stripe is configured).
     Route::get('/app/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::post('/app/billing/switch', [BillingController::class, 'switchPlan'])->name('billing.switch');
+});
+
+// ---- Platform back-office (super-admin only) ----
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminController::class, 'overview'])->name('overview');
+
+    Route::get('/organizations', [AdminController::class, 'organizations'])->name('organizations');
+    Route::get('/organizations/{organization}/edit', [AdminController::class, 'editOrganization'])->name('organizations.edit');
+    Route::put('/organizations/{organization}', [AdminController::class, 'updateOrganization'])->name('organizations.update');
+
+    Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
+    Route::get('/plans/create', [AdminPlanController::class, 'create'])->name('plans.create');
+    Route::post('/plans', [AdminPlanController::class, 'store'])->name('plans.store');
+    Route::get('/plans/{plan}/edit', [AdminPlanController::class, 'edit'])->name('plans.edit');
+    Route::put('/plans/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
 });
 
 // ---- Public passport resolver (QR scan target, no auth) ----

@@ -67,11 +67,19 @@ passport page. No payments, no CSS.
 ---
 
 ## Slice 2 - Billing
-- ✅ **Billing abstraction** (`App\Billing\BillingProvider`) with a **manual** driver - plan switch with no payment, so the plan/upgrade/quota flow works before any Stripe account exists. Driver chosen by `BILLING_DRIVER` (manual|stripe). Plan catalogue in `config/billing.php` (single source of truth for quotas/pricing). Plan page at `/app/billing`, owner/admin-gated. Verified by tests.
+- ✅ **Billing abstraction** (`App\Billing\BillingProvider`) with a **manual** driver - plan switch with no payment, so the plan/upgrade/quota flow works before any Stripe account exists. Driver chosen by `BILLING_DRIVER` (manual|stripe). Plan catalogue is now **DB-driven** (`plans` table, editable in the admin back-office; `config/billing.php` is the seed/fallback). Tenant plan page at `/app/billing`, owner/admin-gated. Verified by tests.
 - ⏸️ **Stripe** driver (`StripeBillingProvider` via Cashier): add when a Stripe account exists, set keys, flip `BILLING_DRIVER=stripe`. Placeholders already in config + `.env.example`. UI/plans/quota do not change.
 - ⏸️ EU VAT handling (OSS, reverse charge), compliant invoices
 - ⏸️ Dunning / failed-payment / grace period
 - ⏸️ **Lapse policy** for published DPPs after cancellation (REQUIRED before real launch - Free allows published, so the 10-year duty applies to churned free users). Manual downgrade currently keeps existing published passports and only gates NEW publishes.
+
+## Platform back-office (super-admin)  §2.6
+- ✅ Super-admin flag (`users.is_admin`), `admin` middleware, `php artisan admin:grant {email}` command
+- ✅ `/admin` back-office (separate layout, super-admin only): platform analytics overview (orgs, users, passports, scans, plan distribution)
+- ✅ Organization management: list all orgs, change plan, set **per-org published-quota override** (custom deals), suspend/activate
+- ✅ **DB-driven plans** (`plans` table + `Plan` model): create/edit plans, prices, quotas (null = unlimited), public/active flags, custom non-public plans. `Organization::publishedQuota()` precedence: per-org override -> DB plan -> config fallback. Verified by tests.
+- ⏸️ Impersonation (log in as a user, with audit) - next
+- ⏸️ Published-DPP lifecycle tools (archive, legal holds, migrations)
 
 ## Slice 3 - Compliance depth  ⏸️
 - ⏸️ Tiered access views (repairer / recycler / authority / customs) - mechanism stubbed in Slice 1

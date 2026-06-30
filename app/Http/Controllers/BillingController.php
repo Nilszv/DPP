@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Billing\BillingProvider;
 use App\Models\Organization;
+use App\Models\Plan;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +20,7 @@ class BillingController extends Controller
 
         return view('app.billing.index', [
             'org' => $org,
-            'plans' => config('billing.plans'),
+            'plans' => Plan::where('is_public', true)->where('active', true)->orderBy('sort')->get(),
             'currency' => config('billing.currency'),
             'published' => $org->publishedCount(),
             'isManual' => $billing->isManual(),
@@ -31,13 +32,16 @@ class BillingController extends Controller
     {
         abort_unless(auth()->user()->canManageOrg(), 403);
 
-        $data = $request->validate([
-            'plan' => ['required', Rule::in(array_keys(config('billing.plans')))],
-        ]);
+        // Self-service switching is limited to public, active, priced plans (free/medium).
+        // Custom/contact plans (price null, e.g. commercial) are assigned by an admin.
+        $selectable = Plan::where('is_public', true)->where('active', true)
+            ->whereNotNull('price')->pluck('key')->all();
+
+        $data = $request->validate(['plan' => ['required', Rule::in($selectable)]]);
 
         $billing->changePlan($this->currentOrg(), $data['plan']);
 
-        return back()->with('status', 'Plan updated to '.config("billing.plans.{$data['plan']}.name").'.');
+        return back()->with('status', 'Plan updated to '.Plan::where('key', $data['plan'])->value('name').'.');
     }
 
     private function currentOrg(): Organization

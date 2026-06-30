@@ -3,6 +3,7 @@
 namespace App\Billing;
 
 use App\Models\Organization;
+use App\Models\Plan;
 use InvalidArgumentException;
 
 /**
@@ -21,7 +22,10 @@ class ManualBillingProvider implements BillingProvider
 
     public function changePlan(Organization $organization, string $planKey): void
     {
-        if (! array_key_exists($planKey, config('billing.plans'))) {
+        $known = Plan::where('key', $planKey)->exists()
+            || array_key_exists($planKey, config('billing.plans'));
+
+        if (! $known) {
             throw new InvalidArgumentException("Unknown plan: {$planKey}");
         }
 
