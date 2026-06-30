@@ -29,20 +29,28 @@ class LoginCodeService
     {
         $email = strtolower(trim($email));
 
-        // One live code per email: consume any outstanding ones.
-        LoginCode::where('email', $email)->whereNull('consumed_at')
-            ->update(['consumed_at' => Carbon::now()]);
+        return DB::transaction(function () use ($email) {
+            // Serialize concurrent issuance for the same email so two simultaneous /login
+            // requests cannot both pass the consume step and leave two active codes. The
+            // advisory lock is held until commit; a partial unique index on active codes is
+            // the hard DB invariant behind it.
+            DB::statement('SELECT pg_advisory_xact_lock(hashtext(?))', [$email]);
 
-        $code = str_pad((string) random_int(0, 999999), self::CODE_LENGTH, '0', STR_PAD_LEFT);
+            // One live code per email: consume any outstanding ones first.
+            LoginCode::where('email', $email)->whereNull('consumed_at')
+                ->update(['consumed_at' => Carbon::now()]);
 
-        LoginCode::create([
-            'email' => $email,
-            'code_hash' => Hash::make($code),
-            'attempts' => 0,
-            'expires_at' => Carbon::now()->addMinutes(self::EXPIRY_MINUTES),
-        ]);
+            $code = str_pad((string) random_int(0, 999999), self::CODE_LENGTH, '0', STR_PAD_LEFT);
 
-        return $code;
+            LoginCode::create([
+                'email' => $email,
+                'code_hash' => Hash::make($code),
+                'attempts' => 0,
+                'expires_at' => Carbon::now()->addMinutes(self::EXPIRY_MINUTES),
+            ]);
+
+            return $code;
+        });
     }
 
     /**

@@ -120,11 +120,25 @@ class PasswordlessLoginTest extends TestCase
         $this->post('/login', ['email' => 'cooldown@example.com'])
             ->assertRedirect(route('login.code'));
 
-        // Immediate second request is blocked by the per-email cooldown.
+        // Immediate second request must NOT send another email (this was the duplicate-email
+        // bug). It simply routes back to the code page.
         $this->post('/login', ['email' => 'cooldown@example.com'])
-            ->assertSessionHasErrors('email');
+            ->assertRedirect(route('login.code'));
 
         Mail::assertSent(LoginCodeMail::class, 1);
+    }
+
+    public function test_issuing_twice_leaves_only_one_active_code(): void
+    {
+        $service = app(LoginCodeService::class);
+        $service->issue('multi@example.com');
+        $service->issue('multi@example.com');
+
+        $active = LoginCode::where('email', 'multi@example.com')
+            ->whereNull('consumed_at')
+            ->count();
+
+        $this->assertSame(1, $active);
     }
 
     /** Pull the raw code out of the faked mail so we can complete the flow. */

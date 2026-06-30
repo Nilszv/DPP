@@ -15,4 +15,13 @@ return [
 
     /* Audiences the tiered resolver/snapshots support. Only 'consumer' renders in Slice 1. */
     'audiences' => ['consumer', 'repairer', 'recycler', 'authority', 'full'],
+
+    /*
+     | Emails exempt from the send-code throttle and cooldown (for testing only).
+     | Comma-separated in DPP_UNTHROTTLED_EMAILS. Keep this empty in production.
+     */
+    'unthrottled_emails' => array_filter(array_map(
+        'trim',
+        explode(',', (string) env('DPP_UNTHROTTLED_EMAILS', ''))
+    )),
 ];

@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Log in - DPP Platform</title>
-    {{-- No styles by design. Semantic markup for the designer to style later. --}}
+    {{-- Baseline layout only (public/css/app.css). A designer replaces it with the real design. --}}
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
 </head>
 <body class="page page-login">
     <main class="auth">

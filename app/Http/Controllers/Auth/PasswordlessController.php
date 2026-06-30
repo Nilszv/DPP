@@ -39,30 +39,36 @@ class PasswordlessController extends Controller
         $data = $request->validate(['email' => ['required', 'email', 'max:255']]);
         $email = strtolower(trim($data['email']));
 
-        // Per-email hourly cap: stops an attacker email-bombing a victim from rotating IPs.
-        $rateKey = 'login-send:'.$email;
-        if (RateLimiter::tooManyAttempts($rateKey, self::MAX_SENDS_PER_HOUR)) {
-            return back()->withErrors([
-                'email' => 'Too many code requests for this email. Please try again later.',
-            ])->withInput();
-        }
+        // Remember which email we are verifying (not whether it has an account).
+        $request->session()->put('login.email', $email);
 
-        // Short resend cooldown: one code per minute per email.
-        $cooldownKey = 'login-cooldown:'.$email;
-        if (Cache::has($cooldownKey)) {
-            return back()->withErrors([
-                'email' => 'A code was just sent. Please wait a minute before requesting another.',
-            ])->withInput();
+        // Allowlisted test addresses skip the throttle/cooldown entirely.
+        $unthrottled = in_array($email, config('dpp.unthrottled_emails', []), true);
+
+        if (! $unthrottled) {
+            // Atomically reserve the resend cooldown BEFORE the (slow, synchronous) SMTP send.
+            // Cache::add is a check-and-set: it returns false if a code was already sent within
+            // the window. Reserving first means a second request that arrives while the first is
+            // still sending is blocked here -- which is what was causing duplicate emails.
+            $cooldownKey = 'login-cooldown:'.$email;
+            if (! Cache::add($cooldownKey, true, self::RESEND_COOLDOWN_SECONDS)) {
+                // A code was just sent (or is sending). Do not send another; go to the code page.
+                return redirect()->route('login.code')
+                    ->with('status', 'A code was already sent to '.$email.'. Please check your email.');
+            }
+
+            // Per-email hourly cap: stops an attacker email-bombing a victim from rotating IPs.
+            $rateKey = 'login-send:'.$email;
+            if (RateLimiter::tooManyAttempts($rateKey, self::MAX_SENDS_PER_HOUR)) {
+                return back()->withErrors([
+                    'email' => 'Too many code requests for this email. Please try again later.',
+                ])->withInput();
+            }
+            RateLimiter::hit($rateKey, 3600);
         }
 
         $code = $this->codes->issue($email);
         Mail::to($email)->send(new LoginCodeMail($code, LoginCodeService::EXPIRY_MINUTES));
-
-        RateLimiter::hit($rateKey, 3600);
-        Cache::put($cooldownKey, true, self::RESEND_COOLDOWN_SECONDS);
-
-        // Remember which email we are verifying (not whether it has an account).
-        $request->session()->put('login.email', $email);
 
         return redirect()->route('login.code')
             ->with('status', 'We sent a 6-digit code to '.$email.'. It expires in '
