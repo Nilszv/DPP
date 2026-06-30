@@ -19,7 +19,7 @@ class LoginCodeMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Your DPP Platform login code: ' . $this->code);
+        return new Envelope(subject: 'Your DPP Platform login code: '.$this->code);
     }
 
     public function content(): Content

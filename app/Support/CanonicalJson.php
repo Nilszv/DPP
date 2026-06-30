@@ -34,6 +34,7 @@ final class CanonicalJson
                 return array_map([self::class, 'canonicalize'], $value);
             }
             ksort($value);
+
             return array_map([self::class, 'canonicalize'], $value);
         }
 

@@ -20,7 +20,7 @@ class OrganizationScope implements Scope
     {
         if (app()->bound('currentOrganizationId')) {
             $builder->where(
-                $model->getTable() . '.organization_id',
+                $model->getTable().'.organization_id',
                 app('currentOrganizationId')
             );
         }

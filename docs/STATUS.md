@@ -31,9 +31,20 @@ passport page. No payments, no CSS.
 - ✅ First login creates the account + the user's first Organization (they become owner) + sets current org. `/login`, `/login/code`, `/logout`, `/app` live; `/app` redirects to login when unauthenticated.
 - ✅ **SMTP configured** (reused veebimajutus.ee / info@vdisain.lv from existing projects). Real send verified.
 - ✅ Tenant-context middleware (`org.context` -> `SetCurrentOrganization`) binds current org so `OrganizationScope` isolates tenant queries on `/app`.
+- ✅ Tenant isolation verified by automated tests (scope hides other tenants, cross-tenant id lookup blocked, stale-org middleware fallback)
 - ⬜ Organization roles enforced in UI/policies (Owner/Admin/Editor/Viewer) - roles stored, not yet gated
-- ⬜ Tenant isolation verified by automated test (needs Postgres test DB - see note below)
 - ⬜ Plan + quota enforcement server-side (Free=1 published, Medium=5, Commercial=custom) - quota helper exists, not yet enforced on publish
+
+### Code review remediation (2026-06-30, external review)
+- ✅ Account+org+membership creation wrapped in a DB transaction (no partial state); concurrent first-login unique-email race handled
+- ✅ Persistent "remember me" is now opt-in (checkbox), not forced
+- ✅ Emails are `citext` at the DB level (case-insensitive uniqueness, not just app lowercasing)
+- ✅ Per-email send throttle (5/hour) + 60s resend cooldown, on top of the per-IP route throttle
+- ✅ Tenant-context middleware verifies the user is still a member of the stored org (falls back + repairs otherwise); FK added on `users.current_organization_id`
+- ✅ `partitions:ensure` command (referenced by docs) implemented + scheduled monthly
+- ✅ Postgres test database wired (phpunit forces `pgsql` + `dpp_test`); 12 feature tests pass
+- ✅ GitHub Actions CI: Postgres 14 service, Composer, Pint (`--test`), PHPUnit, npm build
+- ✅ `.env.example` updated to the real project (Postgres, DPP env vars, app name, SMTP)
 
 ### DPP product layer
 - ⬜ Product CRUD (unstyled HTML)

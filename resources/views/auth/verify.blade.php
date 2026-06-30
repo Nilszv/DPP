@@ -30,6 +30,13 @@
                 @enderror
             </div>
 
+            <div class="form-row form-row-checkbox">
+                <label for="remember">
+                    <input id="remember" name="remember" type="checkbox" value="1">
+                    Keep me signed in on this device
+                </label>
+            </div>
+
             <div class="form-actions">
                 <button type="submit">Verify and continue</button>
             </div>

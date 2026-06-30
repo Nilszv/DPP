@@ -15,7 +15,9 @@ use Illuminate\Support\Facades\Hash;
 class LoginCodeService
 {
     public const EXPIRY_MINUTES = 10;
+
     public const MAX_ATTEMPTS = 5;
+
     public const CODE_LENGTH = 6;
 
     /**
@@ -61,6 +63,7 @@ class LoginCodeService
 
         if ($record->attempts >= self::MAX_ATTEMPTS) {
             $record->update(['consumed_at' => Carbon::now()]);   // burn it
+
             return false;
         }
 
@@ -71,6 +74,7 @@ class LoginCodeService
         }
 
         $record->update(['consumed_at' => Carbon::now()]);
+
         return true;
     }
 }

@@ -68,6 +68,7 @@ class Passport extends Model
             if ($this->serial) {
                 $url .= "/21/{$this->serial}";
             }
+
             return $url;
         }
 

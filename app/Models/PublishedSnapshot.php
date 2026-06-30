@@ -12,9 +12,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PublishedSnapshot extends Model
 {
     public const UPDATED_AT = 'updated_at';
+
     public const CREATED_AT = null;
 
     public $incrementing = false;
+
     protected $primaryKey = null;   // composite key; we always upsert/lookup by all three
 
     protected $fillable = ['passport_id', 'audience', 'locale', 'rendered', 'etag'];

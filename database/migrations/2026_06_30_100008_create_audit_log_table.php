@@ -33,7 +33,7 @@ return new class extends Migration
         for ($i = 0; $i < 3; $i++) {
             $from = $start->copy()->addMonths($i);
             $to = $from->copy()->addMonth();
-            $name = 'audit_log_' . $from->format('Y_m');
+            $name = 'audit_log_'.$from->format('Y_m');
             DB::statement(sprintf(
                 "CREATE TABLE %s PARTITION OF audit_log FOR VALUES FROM ('%s') TO ('%s')",
                 $name, $from->format('Y-m-d'), $to->format('Y-m-d')
