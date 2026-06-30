@@ -33,7 +33,7 @@ passport page. No payments, no CSS.
 - ✅ Tenant-context middleware (`org.context` -> `SetCurrentOrganization`) binds current org so `OrganizationScope` isolates tenant queries on `/app`.
 - ✅ Tenant isolation verified by automated tests (scope hides other tenants, cross-tenant id lookup blocked, stale-org middleware fallback)
 - ⬜ Organization roles enforced in UI/policies (Owner/Admin/Editor/Viewer) - roles stored, not yet gated
-- ⬜ Plan + quota enforcement server-side (Free=1 published, Medium=5, Commercial=custom) - quota helper exists, not yet enforced on publish
+- ✅ Plan + quota enforcement server-side (Free=1 published, Medium=5, Commercial=custom) - enforced on publish in `PassportPublisher` (concurrency-safe per-org advisory lock); see DPP product layer below
 
 ### Code review remediation (2026-06-30, external review)
 - ✅ Account+org+membership creation wrapped in a DB transaction (no partial state); concurrent first-login unique-email race handled
