@@ -234,3 +234,36 @@ An archived passport doesn't need to sit in your primary DB - export it as a sig
 - Ledger anchoring
 
 > Don't shard on day one. The read/write split and the partitioned scan table are what actually keep you fast; everything else is added when metrics say so.
+
+---
+
+## 10. As-built schema (implemented 2026-06-30)
+
+The design above is implemented. Tables that exist now (see `database/migrations/`):
+
+**Tenancy & auth:** `users` (uuid PK, `is_admin`, `current_organization_id`),
+`organizations` (plan + status + per-org overrides + company profile + `country` +
+`onboarding_completed_at`), `organization_user` (membership pivot with `role`),
+`login_codes` (passwordless, partial unique index for one active code per email),
+`invitations` (team invites, partial unique index for one pending per email per org).
+
+**Billing:** `plans` (DB-driven: `published_quota`, `team_quota`, price, interval, flags),
+`legal_documents` (versioned, admin-editable), `legal_acceptances` (audit trail).
+
+**Product / passport (system of record):** `templates` (JSONB `field_schema` + `access_map`),
+`products`, `passports` (both identifier schemes; GS1 partial unique index),
+`passport_versions` (append-only, content hash, `locked`).
+
+**Delivery & analytics:** `published_snapshots` (per audience+locale; the read path),
+`scan_events` (month-partitioned, HMAC IP), `audit_log` (month-partitioned).
+
+**Indexes of note:** GS1 partial unique on `passports`; one-active-code partial unique on
+`login_codes`; one-pending-invite partial unique on `invitations`; `pg_trgm` GIN indexes for
+admin search (org name/legal_name/contact_email, product name, passport gtin/serial,
+`public_id::text`, `users.email::text`).
+
+**Extensions required:** `citext`, `pgcrypto`, `pg_trgm`.
+
+**Not yet built (deferred):** Redis/CDN in front of snapshots, read replicas, tenant-hash
+partitioning of `passports`, cold-archive export to object storage, `registry_sync`,
+`subscriptions` (arrives with Stripe), ledger anchoring.

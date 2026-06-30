@@ -30,32 +30,40 @@ switching `FILESYSTEM_DISK=local` → `s3` is an env change, no code change.
 
 Core (Laravel default): `APP_KEY`, `APP_ENV`, `APP_URL`, `DB_*`.
 
-DPP-specific:
+**Required now:**
 - `PASSPORT_BASE_URL` - the public base that scanned QR codes encode and resolve to.
   Dev: `http://localhost:8000`. Prod: the passport-resolver domain (must be HTTPS, stable
   **forever** - QR codes are permanent and cannot be reprinted).
 - `PASSPORT_DEFAULT_LOCALE` - default Member-State language for the public passport layer.
+- `MAIL_*` (SMTP) - **required**: passwordless login codes and team invitations are emailed.
+  Dev uses `mail.veebimajutus.ee:465` (SSL), from `info@vdisain.lv`.
+- `SCAN_IP_HMAC_KEY` - keyed HMAC secret for hashing scanner IPs (GDPR). Defaults to `APP_KEY`
+  if unset; set an explicit value before real scan traffic. Rotating it is intentional.
+- `SALES_EMAIL` - where "Contact sales" / downgrade requests are delivered (dev: `dev@vdisain.lv`).
+- `BILLING_DRIVER` - `manual` (no payment; plan switches instantly) until Stripe is set up.
+- `DPP_UNTHROTTLED_EMAILS` - comma-separated emails exempt from the login send throttle
+  (testing only; **keep empty in production**).
 
-Added in later slices (placeholder so migration knows they're coming):
-- `BILLING_DRIVER` - `manual` (no payment; plan switches instantly) until Stripe is set up, then `stripe`.
-- Slice 2 (when Stripe added): `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MEDIUM`, `CASHIER_*`, VAT config.
-- Slice 3: registry push credentials, backup-provider creds.
-- `SCAN_IP_HMAC_KEY` - keyed HMAC secret for hashing scanner IPs (GDPR). **Set before any
-  real scan traffic; rotating it is intentional.**
+**Later slices (placeholders already in `.env.example`):**
+- Stripe billing: `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MEDIUM`,
+  `CASHIER_*`, VAT config (set `BILLING_DRIVER=stripe`).
+- Registry push credentials, backup-provider creds.
 - `AWS_*` - when object storage moves to S3.
 
 ---
 
 ## 3. Scheduled jobs (cron) - `php artisan schedule:run` every minute
 
-- **Partition maintenance** (Slice 1): pre-create next month's `scan_events` / `audit_log`
-  partitions before the month boundary, or inserts fail. (Monthly, runs ahead.)
-- Snapshot rebuilds run as queued jobs on publish/update (not cron), but a reconciliation
-  sweep can be scheduled.
+Defined in `routes/console.php`:
+- `partitions:ensure` (monthly) - pre-create next month's `scan_events` / `audit_log`
+  partitions before the boundary, or inserts fall into the default partition.
+- `invitations:prune` (daily) - delete expired, unaccepted team invitations.
 - Later: retention/archival sweep (move `archived` passports to cold object storage),
   dunning, backup-provider sync.
 
-A **queue worker** must run in prod: `php artisan queue:work` (systemd/supervisor).
+The **scheduler** must run in prod (cron: `php artisan schedule:run` every minute).
+A **queue worker** is needed once mail/snapshots move to queued jobs (currently synchronous):
+`php artisan queue:work` (systemd/supervisor).
 
 ---
 
@@ -77,12 +85,13 @@ A **queue worker** must run in prod: `php artisan queue:work` (systemd/superviso
 
 ## 5. Migration checklist (moving off this dev box)
 
-- [ ] Provision PostgreSQL 14+, create role + DB, enable `citext` + `pgcrypto`.
+- [ ] Provision PostgreSQL 14+, create role + DB, enable `citext`, `pgcrypto`, `pg_trgm`.
 - [ ] `git clone`, `composer install --no-dev`, `npm ci && npm run build`.
 - [ ] Set all env vars (§2), `php artisan key:generate`, `php artisan migrate --force`.
-- [ ] Seed templates (`php artisan db:seed --class=TemplateSeeder`).
+- [ ] Seed reference data: `php artisan db:seed` (plans, generic template, registration policy).
+- [ ] Promote the first super-admin: `php artisan admin:grant you@example.com` (after they sign in once).
+- [ ] Configure SMTP (required) and `SALES_EMAIL`.
 - [ ] Configure Nginx + PHP-FPM + HTTPS; point `PASSPORT_BASE_URL` at the final resolver domain.
-- [ ] Start queue worker + scheduler (systemd/supervisor).
+- [ ] Start the scheduler (cron) + a queue worker (systemd/supervisor).
 - [ ] Configure object storage (S3) + backups + PITR.
-- [ ] Configure SMTP for transactional email.
-- [ ] WordPress: mount platform under `/login`, `/app`, `/p`; WordPress owns `/`.
+- [ ] WordPress: mount platform under `/login`, `/app`, `/p`, `/01`, `/admin`; WordPress owns `/`.

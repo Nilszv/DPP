@@ -6,11 +6,36 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 
 ---
 
-## Slice 1 - Core loop (no billing, no styling)
+## Resume here (paused 2026-06-30)
 
-This is the slice currently being built. Goal: a user can sign up, create an org,
-create a DPP from a template, publish it, and have a scannable QR resolve to a public
-passport page. No payments, no CSS.
+**Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 71 tests pass.
+
+**Built & working:** passwordless auth · multi-tenant orgs with roles · first-run onboarding
+(company profile + country/tax + legal acceptance) · DPP create -> publish -> QR -> public
+resolve (consumer view, JSON-LD) · scan logging · billing abstraction (manual driver, DB-driven
+plans, downgrade guard + Contact sales) · team management (invites, seats, org switcher) ·
+admin back-office (overview, orgs search/detail, QR browser, plans, legal editor) · CI.
+
+**Best next steps (pick one):**
+1. **Tiered public views** (repairer/recycler/authority) - access-map + snapshot plumbing
+   already exists; only `consumer` renders.
+2. **Stripe billing** - needs a Stripe account + the lapse-policy decision first.
+3. **Post-publish versioning** (corrections to a published passport).
+4. **Real per-category templates** (owner to provide field examples).
+
+**Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
+the legal role (host vs. ESPR service provider), first product category, and final domains.
+
+**How to run:** see `DEPLOYMENT.md`. Codebase map + conventions: see `ARCHITECTURE.md`.
+Run tests: `php artisan test` (uses the `dpp_test` Postgres DB). Format: `./vendor/bin/pint`.
+
+---
+
+## Slice 1 - Core loop
+
+Goal: a user can sign up, create an org, create a DPP from a template, publish it, and have a
+scannable QR resolve to a public passport page. **Done.**
 
 ### Foundation
 - ✅ PostgreSQL 14 installed + `dpp` database/role created (`citext`, `pgcrypto` extensions)

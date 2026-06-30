@@ -6,28 +6,35 @@ to a fast public passport page.
 
 ## Status
 
-Early development. **Slice 1 (core loop)** in progress. See:
+Active development, core platform working end to end (reviewed ~9/10). Docs:
 
-- `docs/STATUS.md` - what is done vs. pending (kept current)
-- `docs/DPP_SaaS_Platform_Scope.md` - product scope, tiers, build phases
-- `docs/DPP_Database_Architecture.md` - data layer design (the scalability core)
+- `docs/STATUS.md` - what is done vs. pending (start here; has a "Resume here" section)
+- `docs/ARCHITECTURE.md` - codebase map, middleware, services, conventions
 - `docs/DEPLOYMENT.md` - what the system needs to run / migrate to production
+- `docs/DPP_Database_Architecture.md` - data layer design + as-built schema
+- `docs/DPP_SaaS_Platform_Scope.md` - original product scope, tiers, build phases
 
 ## Stack
 
 - PHP 8.3 / Laravel 12
-- PostgreSQL 14 (JSONB passport bodies, partial indexes, month-partitioned scan/audit tables)
+- PostgreSQL 14 (JSONB passport bodies, partial indexes, month-partitioned scan/audit tables,
+  `pg_trgm` search). Extensions: `citext`, `pgcrypto`, `pg_trgm`.
 - Plain semantic HTML, no styling yet (a designer adds SCSS later over the markup)
 - Object storage via Laravel filesystem (local in dev, S3-compatible in prod)
 
 ## What works so far
 
-- Database foundation: organizations + membership, products, passports (GS1 Digital Link +
-  fallback UUID identifiers), append-only versions with canonical-JSON SHA-256 hashing,
-  the read-side `published_snapshots` table, partitioned `scan_events` / `audit_log`.
-- Tenant isolation via an organization global scope.
-- **Passwordless auth**: email -> 6-digit code -> verify -> login (single-use, expiring,
-  attempt-capped, rate-limited). First login creates the account + the user's first org.
+- **Passwordless auth** (email -> 6-digit code), multi-tenant orgs with strict isolation and
+  roles (owner/admin/editor/viewer).
+- **First-run onboarding**: company profile + country (tax) + enforced legal acceptance.
+- **DPP loop**: create from a template -> draft -> publish (quota-gated, locked + hashed
+  version, snapshot built) -> QR -> public resolver (consumer HTML + JSON-LD) -> scan logging.
+- **Billing** (manual driver, Stripe-ready): DB-driven plans, per-org overrides, downgrade
+  guard + Contact sales.
+- **Team management**: email invites, seats, role changes, org switcher.
+- **Admin back-office**: analytics, org search/detail, cross-tenant QR browser, plan editor,
+  legal-document editor.
+- CI (GitHub Actions, Postgres) + 71 feature tests.
 
 ## Local setup
 
@@ -35,9 +42,12 @@ Early development. **Slice 1 (core loop)** in progress. See:
 composer install
 cp .env.example .env
 php artisan key:generate
-# configure DB_* for a PostgreSQL 14 database with citext + pgcrypto extensions
+# PostgreSQL 14 with citext + pgcrypto + pg_trgm; set DB_* + MAIL_* (SMTP) in .env
 php artisan migrate
+php artisan db:seed          # plans, generic template, registration policy
 php artisan serve
+# promote a super-admin after they sign in once:
+php artisan admin:grant you@example.com
 ```
 
 ## Architecture notes
