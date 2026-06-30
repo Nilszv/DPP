@@ -20,18 +20,21 @@ return [
             'price' => 0,
             'interval' => null,
             'published_quota' => 1,
+            'team_quota' => 1,
         ],
         'medium' => [
             'name' => 'Medium',
             'price' => 9,
             'interval' => 'month',
             'published_quota' => 5,
+            'team_quota' => 3,
         ],
         'commercial' => [
             'name' => 'Commercial',
             'price' => null,           // custom / sales-led
             'interval' => 'custom',
             'published_quota' => PHP_INT_MAX,
+            'team_quota' => PHP_INT_MAX,
         ],
     ],
 

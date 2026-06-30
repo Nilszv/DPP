@@ -31,6 +31,14 @@
         </div>
 
         <div class="form-row">
+            <label for="team_quota_override">Team-seat override</label>
+            <input id="team_quota_override" name="team_quota_override" type="number" min="1"
+                   value="{{ old('team_quota_override', $organization->team_quota_override) }}">
+            <span class="muted">Leave empty to use the plan's seat limit. Set a number for a custom deal.</span>
+            @error('team_quota_override')<p class="field-error">{{ $message }}</p>@enderror
+        </div>
+
+        <div class="form-row">
             <label for="price_override">Price override ({{ config('billing.currency') }})</label>
             <input id="price_override" name="price_override" type="number" step="0.01" min="0"
                    value="{{ old('price_override', $organization->price_override) }}">

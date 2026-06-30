@@ -12,10 +12,22 @@
         <strong class="app-title"><a href="{{ route('dashboard') }}">DPP Platform</a></strong>
         <nav class="app-nav" aria-label="Primary">
             <a href="{{ route('passports.index') }}">Passports</a>
+            <a href="{{ route('team.index') }}">Team</a>
             <a href="{{ route('organization.show') }}">Company</a>
             <a href="{{ route('billing.index') }}">Plan</a>
             @if (auth()->user()?->isAdmin())
                 <a href="{{ route('admin.overview') }}">Admin</a>
+            @endif
+            @php($myOrgs = auth()->user()?->organizations)
+            @if ($myOrgs && $myOrgs->count() > 1)
+                <form method="POST" action="{{ route('current-org.switch') }}">
+                    @csrf
+                    <select name="organization_id" onchange="this.form.submit()" aria-label="Switch organization">
+                        @foreach ($myOrgs as $o)
+                            <option value="{{ $o->id }}" @selected($o->id === auth()->user()->current_organization_id)>{{ $o->name }}</option>
+                        @endforeach
+                    </select>
+                </form>
             @endif
             <span class="muted">{{ auth()->user()?->email }}</span>
             <form method="POST" action="{{ route('logout') }}">

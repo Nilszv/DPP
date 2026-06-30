@@ -7,10 +7,13 @@ use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Auth\PasswordlessController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\CurrentOrganizationController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PassportController;
 use App\Http\Controllers\ResolverController;
+use App\Http\Controllers\TeamController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -53,6 +56,16 @@ Route::middleware('guest')->group(function () {
 // Logout only needs auth (a suspended-org user must still be able to log out).
 Route::post('/logout', [PasswordlessController::class, 'logout'])->middleware('auth')->name('logout');
 
+// Accept a team invitation: auth-only (a new invitee can accept before onboarding their own org).
+Route::middleware('auth')->group(function () {
+    Route::get('/app/invitations/{token}', [InvitationController::class, 'show'])->name('invitations.show');
+    Route::post('/app/invitations/{token}/accept', [InvitationController::class, 'accept'])->name('invitations.accept');
+});
+
+// Switch active organization (available without completing onboarding of the current org).
+Route::post('/app/switch-org', [CurrentOrganizationController::class, 'switch'])
+    ->middleware(['auth', 'org.context'])->name('current-org.switch');
+
 // First-run onboarding (reachable before the org is onboarded; not behind 'onboarded').
 Route::middleware(['auth', 'org.context', 'org.active'])->group(function () {
     Route::get('/app/onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
@@ -68,6 +81,13 @@ Route::middleware(['auth', 'org.context', 'org.active', 'onboarded'])->group(fun
     // Organization profile (company data captured at onboarding).
     Route::get('/app/organization', [OrganizationController::class, 'show'])->name('organization.show');
     Route::put('/app/organization', [OrganizationController::class, 'update'])->name('organization.update');
+
+    // Team / members.
+    Route::get('/app/team', [TeamController::class, 'index'])->name('team.index');
+    Route::post('/app/team/invite', [TeamController::class, 'invite'])->name('team.invite');
+    Route::put('/app/team/members/{member}', [TeamController::class, 'updateRole'])->name('team.members.role');
+    Route::delete('/app/team/members/{member}', [TeamController::class, 'removeMember'])->name('team.members.remove');
+    Route::delete('/app/team/invitations/{invitation}', [TeamController::class, 'revokeInvitation'])->name('team.invitations.revoke');
 
     // Passport lifecycle: list, create draft, edit fields, view, publish, QR.
     Route::get('/app/passports', [PassportController::class, 'index'])->name('passports.index');

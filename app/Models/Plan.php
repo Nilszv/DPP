@@ -15,21 +15,28 @@ class Plan extends Model
     use HasUuids;
 
     protected $fillable = [
-        'key', 'name', 'price', 'interval', 'published_quota',
+        'key', 'name', 'price', 'interval', 'published_quota', 'team_quota',
         'is_public', 'active', 'stripe_price_id', 'sort',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'published_quota' => 'integer',
+        'team_quota' => 'integer',
         'is_public' => 'boolean',
         'active' => 'boolean',
         'sort' => 'integer',
     ];
 
-    /** Effective numeric quota (null in DB = unlimited). */
+    /** Effective numeric published-passport quota (null in DB = unlimited). */
     public function effectiveQuota(): int
     {
         return $this->published_quota ?? PHP_INT_MAX;
+    }
+
+    /** Effective team-seat quota (null in DB = unlimited). */
+    public function effectiveSeats(): int
+    {
+        return $this->team_quota ?? PHP_INT_MAX;
     }
 }

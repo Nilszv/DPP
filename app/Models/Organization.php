@@ -13,7 +13,7 @@ class Organization extends Model
 
     protected $fillable = [
         'name', 'slug', 'plan', 'status', 'vat_id', 'custom_domain',
-        'published_quota_override', 'price_override', 'interval_override',
+        'published_quota_override', 'price_override', 'interval_override', 'team_quota_override',
         'legal_name', 'registration_number', 'address_line1', 'address_line2',
         'city', 'postal_code', 'country', 'contact_name', 'contact_email',
         'contact_phone', 'onboarding_completed_at',
@@ -63,6 +63,37 @@ class Organization extends Model
     public function legalAcceptances(): HasMany
     {
         return $this->hasMany(LegalAcceptance::class);
+    }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(Invitation::class);
+    }
+
+    public function pendingInvitations(): HasMany
+    {
+        return $this->invitations()->whereNull('accepted_at');
+    }
+
+    /** Team-seat limit (per-org override -> plan -> unlimited). */
+    public function seatLimit(): int
+    {
+        if ($this->team_quota_override !== null) {
+            return (int) $this->team_quota_override;
+        }
+
+        return $this->planModel()?->effectiveSeats() ?? PHP_INT_MAX;
+    }
+
+    /** Seats in use = accepted members + outstanding invitations. */
+    public function usedSeats(): int
+    {
+        return $this->members()->count() + $this->pendingInvitations()->count();
+    }
+
+    public function hasSeatAvailable(): bool
+    {
+        return $this->usedSeats() < $this->seatLimit();
     }
 
     /** The DB-driven plan for this org, if present. */

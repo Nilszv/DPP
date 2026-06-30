@@ -11,9 +11,9 @@ class PlanSeeder extends Seeder
     public function run(): void
     {
         $defaults = [
-            ['key' => 'free', 'name' => 'Free', 'price' => 0, 'interval' => null, 'published_quota' => 1, 'is_public' => true, 'sort' => 1],
-            ['key' => 'medium', 'name' => 'Medium', 'price' => 9, 'interval' => 'month', 'published_quota' => 5, 'is_public' => true, 'sort' => 2],
-            ['key' => 'commercial', 'name' => 'Commercial', 'price' => null, 'interval' => 'custom', 'published_quota' => null, 'is_public' => true, 'sort' => 3],
+            ['key' => 'free', 'name' => 'Free', 'price' => 0, 'interval' => null, 'published_quota' => 1, 'team_quota' => 1, 'is_public' => true, 'sort' => 1],
+            ['key' => 'medium', 'name' => 'Medium', 'price' => 9, 'interval' => 'month', 'published_quota' => 5, 'team_quota' => 3, 'is_public' => true, 'sort' => 2],
+            ['key' => 'commercial', 'name' => 'Commercial', 'price' => null, 'interval' => 'custom', 'published_quota' => null, 'team_quota' => null, 'is_public' => true, 'sort' => 3],
         ];
 
         foreach ($defaults as $plan) {
