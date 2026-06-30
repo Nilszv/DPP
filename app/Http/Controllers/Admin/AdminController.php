@@ -29,12 +29,61 @@ class AdminController extends Controller
         ]);
     }
 
-    public function organizations()
+    public function organizations(Request $request)
     {
-        $organizations = Organization::withCount(['members', 'passports'])
-            ->orderBy('created_at')->get();
+        $query = Organization::withCount(['members', 'passports'])
+            ->withCount(['passports as published_count' => fn ($q) => $q->where('status', 'published')]);
 
-        return view('admin.organizations.index', compact('organizations'));
+        // Search by company name / contact email / member email.
+        if ($q = trim((string) $request->query('q'))) {
+            $query->where(function ($w) use ($q) {
+                $w->where('name', 'ILIKE', "%{$q}%")
+                    ->orWhere('legal_name', 'ILIKE', "%{$q}%")
+                    ->orWhere('contact_email', 'ILIKE', "%{$q}%")
+                    ->orWhereHas('members', fn ($m) => $m->where('email', 'ILIKE', "%{$q}%"));
+            });
+        }
+
+        if ($plan = $request->query('plan')) {
+            $query->where('plan', $plan);
+        }
+        if (in_array($request->query('status'), ['active', 'suspended'], true)) {
+            $query->where('status', $request->query('status'));
+        }
+
+        // Sort.
+        $dir = $request->query('dir') === 'asc' ? 'asc' : 'desc';
+        $column = match ($request->query('sort')) {
+            'name' => 'name',
+            'published' => 'published_count',
+            default => 'created_at',
+        };
+        $query->orderBy($column, $dir);
+
+        return view('admin.organizations.index', [
+            'organizations' => $query->paginate(20)->withQueryString(),
+            'plans' => Plan::orderBy('sort')->get(),
+            'filters' => [
+                'q' => $request->query('q'),
+                'plan' => $request->query('plan'),
+                'status' => $request->query('status'),
+                'sort' => $request->query('sort', 'created'),
+                'dir' => $dir,
+            ],
+        ]);
+    }
+
+    public function showOrganization(Organization $organization)
+    {
+        $organization->load('members');
+
+        return view('admin.organizations.show', [
+            'organization' => $organization,
+            'publishedCount' => $organization->publishedCount(),
+            'draftCount' => $organization->passports()->where('status', 'draft')->count(),
+            'acceptances' => $organization->legalAcceptances()->with('user:id,name,email')
+                ->orderByDesc('accepted_at')->get(),
+        ]);
     }
 
     public function editOrganization(Organization $organization)

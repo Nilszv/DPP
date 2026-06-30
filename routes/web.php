@@ -93,6 +93,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/', [AdminController::class, 'overview'])->name('overview');
 
     Route::get('/organizations', [AdminController::class, 'organizations'])->name('organizations');
+    Route::get('/organizations/{organization}', [AdminController::class, 'showOrganization'])->name('organizations.show');
     Route::get('/organizations/{organization}/edit', [AdminController::class, 'editOrganization'])->name('organizations.edit');
     Route::put('/organizations/{organization}', [AdminController::class, 'updateOrganization'])->name('organizations.update');
 

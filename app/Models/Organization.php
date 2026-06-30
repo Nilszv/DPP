@@ -60,6 +60,11 @@ class Organization extends Model
         return $this->hasMany(Passport::class);
     }
 
+    public function legalAcceptances(): HasMany
+    {
+        return $this->hasMany(LegalAcceptance::class);
+    }
+
     /** The DB-driven plan for this org, if present. */
     public function planModel(): ?Plan
     {

@@ -154,6 +154,65 @@ class AdminBackofficeTest extends TestCase
         app(PassportPublisher::class)->publish($passport);
     }
 
+    public function test_organizations_can_be_searched_by_company_name(): void
+    {
+        $this->org('free')->update(['legal_name' => 'AlphaIndustries']);
+        $this->org('free')->update(['legal_name' => 'BetaCorp']);
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.organizations', ['q' => 'Alpha']))
+            ->assertSee('AlphaIndustries')
+            ->assertDontSee('BetaCorp');
+    }
+
+    public function test_organizations_can_be_searched_by_member_email(): void
+    {
+        $a = $this->org('free');
+        $a->update(['legal_name' => 'AlphaCo']);
+        $this->member($a, 'finder@acme.test');
+
+        $b = $this->org('free');
+        $b->update(['legal_name' => 'BetaCo']);
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.organizations', ['q' => 'finder@acme.test']))
+            ->assertSee('AlphaCo')
+            ->assertDontSee('BetaCo');
+    }
+
+    public function test_organizations_can_be_filtered_by_status(): void
+    {
+        $this->org('free')->update(['legal_name' => 'ActiveCo', 'status' => 'active']);
+        $this->org('free')->update(['legal_name' => 'SuspendedCo', 'status' => 'suspended']);
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.organizations', ['status' => 'suspended']))
+            ->assertSee('SuspendedCo')
+            ->assertDontSee('ActiveCo');
+    }
+
+    public function test_organization_detail_view_shows_profile_and_members(): void
+    {
+        $org = $this->org('medium');
+        $org->update(['legal_name' => 'DetailCo', 'country' => 'LV', 'city' => 'Riga']);
+        $this->member($org, 'owner@detailco.test');
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.organizations.show', $org))
+            ->assertOk()
+            ->assertSee('DetailCo')
+            ->assertSee('owner@detailco.test')
+            ->assertSee('Riga');
+    }
+
+    private function member(Organization $org, string $email): User
+    {
+        $user = User::create(['name' => 'M', 'email' => $email, 'email_verified_at' => now()]);
+        $org->members()->attach($user->id, ['role' => 'owner']);
+
+        return $user;
+    }
+
     private function admin(): User
     {
         $user = User::create([
