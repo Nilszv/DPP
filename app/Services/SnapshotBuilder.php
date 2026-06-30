@@ -1,0 +1,75 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Passport;
+use App\Models\PassportVersion;
+use App\Models\PublishedSnapshot;
+use App\Models\Template;
+use App\Support\CanonicalJson;
+
+/**
+ * Builds the read-side delivery rows (published_snapshots) for a passport version.
+ * Each row is a pre-filtered, per-audience view the resolver serves with a single key
+ * lookup -- never a live join. Slice 1 renders the consumer audience (plus a full audience
+ * for authority/debug); the others are wired for the later tiered views.
+ */
+class SnapshotBuilder
+{
+    /** Audiences built now. The template access_map controls field visibility per audience. */
+    private const AUDIENCES = ['consumer', 'full'];
+
+    public function build(Passport $passport, PassportVersion $version, Template $template): void
+    {
+        $locale = $passport->default_locale;
+
+        foreach (self::AUDIENCES as $audience) {
+            $rendered = $this->render($passport, $version, $template, $audience, $locale);
+
+            PublishedSnapshot::updateOrCreate(
+                ['passport_id' => $passport->id, 'audience' => $audience, 'locale' => $locale],
+                ['rendered' => $rendered, 'etag' => CanonicalJson::hash($rendered)],
+            );
+        }
+    }
+
+    private function render(Passport $passport, PassportVersion $version, Template $template, string $audience, string $locale): array
+    {
+        $data = $version->data ?? [];
+        $accessMap = $template->access_map ?? [];
+
+        $fields = [];
+        foreach ($template->field_schema as $field) {
+            $key = $field['key'];
+            $value = $data[$key] ?? null;
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            // 'full' sees everything; other audiences only fields their tier is mapped to.
+            $allowed = $audience === 'full' || in_array($audience, $accessMap[$key] ?? [], true);
+            if (! $allowed) {
+                continue;
+            }
+
+            $fields[] = ['label' => $field['label'], 'value' => $value];
+        }
+
+        return [
+            'title' => $data['product_name'] ?? $passport->product->name,
+            'audience' => $audience,
+            'locale' => $locale,
+            'status' => $passport->status,
+            'fields' => $fields,
+            'identifier' => [
+                'scheme' => $passport->identifier_scheme,
+                'public_id' => $passport->public_id,
+                'gtin' => $passport->gtin,
+                'serial' => $passport->serial,
+            ],
+            'content_hash' => $version->content_hash,
+            'published_at' => optional($passport->published_at)->toIso8601String(),
+        ];
+    }
+}

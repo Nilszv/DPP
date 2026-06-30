@@ -12,6 +12,18 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Make the migration safe on any existing data: if duplicate active codes already
+        // exist for an email, consume all but the newest so the unique index can be built.
+        DB::statement(
+            'UPDATE login_codes SET consumed_at = now()
+             WHERE consumed_at IS NULL
+               AND id NOT IN (
+                   SELECT DISTINCT ON (email) id FROM login_codes
+                   WHERE consumed_at IS NULL
+                   ORDER BY email, created_at DESC
+               )'
+        );
+
         DB::statement(
             'CREATE UNIQUE INDEX login_codes_one_active_per_email
              ON login_codes (email) WHERE consumed_at IS NULL'

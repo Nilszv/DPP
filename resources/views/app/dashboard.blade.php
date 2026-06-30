@@ -1,47 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Dashboard - DPP Platform</title>
-    {{-- Baseline layout only (public/css/app.css). A designer replaces it with the real design. --}}
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
-</head>
+@extends('layouts.app')
+@section('title', 'Dashboard - DPP Platform')
+
 @php($org = auth()->user()?->organizations->firstWhere('id', auth()->user()->current_organization_id))
-<body class="page page-dashboard">
-    <header class="app-header">
-        <h1 class="app-title">DPP Platform</h1>
-        <nav class="app-nav" aria-label="Account">
-            <span class="app-user">{{ auth()->user()->email }}</span>
-            <form method="POST" action="{{ route('logout') }}" class="logout-form">
-                @csrf
-                <button type="submit">Log out</button>
-            </form>
-        </nav>
-    </header>
 
-    <main class="app-main">
-        <h2>Welcome, {{ auth()->user()->name }}</h2>
+@section('content')
+    <h1>Welcome, {{ auth()->user()->name }}</h1>
 
-        @if ($org)
-            <section class="org-summary">
-                <h3>Your organization</h3>
-                <dl>
-                    <dt>Name</dt><dd>{{ $org->name }}</dd>
-                    <dt>Plan</dt><dd>{{ ucfirst($org->plan) }}</dd>
-                    <dt>Published DPP quota</dt>
-                    <dd>{{ $org->publishedQuota() === PHP_INT_MAX ? 'Custom' : $org->publishedQuota() }}</dd>
-                </dl>
-            </section>
-        @endif
-
-        <section class="next-steps">
-            <h3>Next steps</h3>
-            <p class="muted">
-                Product and passport creation are being built next. This dashboard will list
-                your products, draft and published passports, and scan counts.
-            </p>
+    @if ($org)
+        <section class="org-summary">
+            <h2>Your organization</h2>
+            <dl>
+                <dt>Name</dt><dd>{{ $org->name }}</dd>
+                <dt>Plan</dt><dd>{{ ucfirst($org->plan) }}</dd>
+                <dt>Published DPP quota</dt>
+                <dd>{{ $org->publishedQuota() === PHP_INT_MAX ? 'Custom' : $org->publishedQuota() }}</dd>
+            </dl>
         </section>
-    </main>
-</body>
-</html>
+    @endif
+
+    <section class="next-steps">
+        <h2>Get started</h2>
+        <p><a class="button" href="{{ route('passports.create') }}">Create a passport</a></p>
+        <p><a href="{{ route('passports.index') }}">View all passports</a></p>
+    </section>
+@endsection

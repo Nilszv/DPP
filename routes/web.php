@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\PasswordlessController;
+use App\Http\Controllers\PassportController;
+use App\Http\Controllers\ResolverController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -47,4 +49,21 @@ Route::middleware(['auth', 'org.context'])->group(function () {
     Route::get('/app', function () {
         return view('app.dashboard');
     })->name('dashboard');
+
+    // Passport lifecycle: list, create draft, edit fields, view, publish, QR.
+    Route::get('/app/passports', [PassportController::class, 'index'])->name('passports.index');
+    Route::get('/app/passports/create', [PassportController::class, 'create'])->name('passports.create');
+    Route::post('/app/passports', [PassportController::class, 'store'])->name('passports.store');
+    Route::get('/app/passports/{passport}', [PassportController::class, 'show'])->name('passports.show');
+    Route::get('/app/passports/{passport}/edit', [PassportController::class, 'edit'])->name('passports.edit');
+    Route::put('/app/passports/{passport}', [PassportController::class, 'update'])->name('passports.update');
+    Route::post('/app/passports/{passport}/publish', [PassportController::class, 'publish'])->name('passports.publish');
+    Route::get('/app/passports/{passport}/qr', [PassportController::class, 'qr'])->name('passports.qr');
 });
+
+// ---- Public passport resolver (QR scan target, no auth) ----
+// GS1 Digital Link form: /01/{gtin}/21/{serial} and GTIN-only /01/{gtin}.
+Route::get('/01/{gtin}/21/{serial}', [ResolverController::class, 'showByGs1'])->name('passport.gs1');
+Route::get('/01/{gtin}', [ResolverController::class, 'showByGs1'])->name('passport.gs1.gtin');
+// Fallback opaque id: /p/{public_id}.
+Route::get('/p/{publicId}', [ResolverController::class, 'showByPublicId'])->name('passport.public');

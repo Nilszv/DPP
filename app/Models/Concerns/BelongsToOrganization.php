@@ -5,6 +5,7 @@ namespace App\Models\Concerns;
 use App\Models\Organization;
 use App\Models\Scopes\OrganizationScope;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Applied to every tenant-owned model. Adds the tenant global scope and auto-fills
@@ -27,5 +28,28 @@ trait BelongsToOrganization
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    /**
+     * Tenant-safe route-model binding. The global scope only constrains the query when the
+     * org context is already bound, but route binding (SubstituteBindings) can run before the
+     * org-context middleware. So we ALSO constrain explicitly here to the current org (from the
+     * container, or the authenticated user's current org) -- a foreign id then resolves to null
+     * (404) regardless of middleware ordering.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $field ??= $this->getRouteKeyName();
+        $query = $this->newQuery()->where($this->getTable().'.'.$field, $value);
+
+        $orgId = app()->bound('currentOrganizationId')
+            ? app('currentOrganizationId')
+            : Auth::user()?->current_organization_id;
+
+        if ($orgId !== null) {
+            $query->where($this->getTable().'.organization_id', $orgId);
+        }
+
+        return $query->first();
     }
 }

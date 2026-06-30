@@ -47,20 +47,22 @@ passport page. No payments, no CSS.
 - ✅ `.env.example` updated to the real project (Postgres, DPP env vars, app name, SMTP)
 
 ### DPP product layer
-- ⬜ Product CRUD (unstyled HTML)
-- ⬜ DPP wizard driven by template field-schema
-- ⬜ Draft → Publish workflow (lock master data, require mandatory fields, write version + hash)
-- ⬜ Identifiers: GS1 Digital Link (`/01/{GTIN}/21/{serial}`) + fallback UUID (`/p/{uuid}`)
-- ⬜ QR generation (SVG + print-ready PNG) via `bacon/bacon-qr-code`
+- ✅ Generic template seeded (`TemplateSeeder`); product created behind the passport wizard
+- ✅ DPP create + edit driven by the template field-schema (plain HTML form)
+- ✅ Draft -> Publish workflow (`PassportPublisher`): required-field gate, **server-side quota enforcement**, master data locked (version + canonical SHA-256 hash), retention date set. Verified by tests.
+- ✅ Identifiers: GS1 Digital Link (`/01/{GTIN}/21/{serial}`) + fallback UUID (`/p/{uuid}`) via `Passport::resolverUrl()`
+- ✅ QR generation (SVG, vector/print-scalable) via `bacon/bacon-qr-code`
+- ⬜ Print-ready PNG export (Imagick) - SVG done, PNG later
 
 ### Public viewer / resolver
-- ⬜ Resolver route handling both URL shapes + content negotiation (Accept / linkType)
-- ⬜ `published_snapshots` build-on-publish job
-- ⬜ Consumer view (plain HTML, no auth, reads one snapshot row)
-- ⬜ Scan logging into partitioned `scan_events`
+- ✅ Resolver route handling both URL shapes + content negotiation (HTML vs JSON-LD)
+- ✅ `published_snapshots` built on publish (`SnapshotBuilder`, consumer + full audiences); resolver reads ONE snapshot row
+- ✅ Consumer view (plain HTML, no auth); drafts/unknown ids return 404
+- ✅ Scan logging into partitioned `scan_events` (`ScanLogger`, HMAC-hashed IP)
+- ✅ Route-model binding is tenant-safe (explicit org constraint in `BelongsToOrganization::resolveRouteBinding`, independent of middleware order) - covered by test
 
 ### Dashboard
-- ⬜ Basic dashboard (DPP list, status, scan count) - unstyled
+- ✅ Basic dashboard + passport list (status), shared `layouts/app` chrome - unstyled baseline
 
 ---
 
