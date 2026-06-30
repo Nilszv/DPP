@@ -42,6 +42,24 @@ class User extends Authenticatable
     }
 
     /**
+     * The org id this user may currently act in, VERIFIED against live membership.
+     * Returns the stored current org if the user still belongs to it; otherwise the first
+     * org they are a member of; otherwise null. Single source of truth for both the
+     * org-context middleware and tenant route-model binding (so a revoked membership can
+     * never leak access via a stale current_organization_id).
+     */
+    public function currentOrganizationIdIfMember(): ?string
+    {
+        $current = $this->current_organization_id;
+
+        if ($current && $this->organizations()->whereKey($current)->exists()) {
+            return $current;
+        }
+
+        return $this->organizations()->orderBy('organizations.created_at')->value('organizations.id');
+    }
+
+    /**
      * The attributes that should be hidden for serialization.
      *
      * @var list<string>

@@ -36,10 +36,22 @@ class PassportPublisher
             throw new PublishException('This passport has no data to publish yet.');
         }
 
+        // Required-field check is about this passport's own data (no concurrency concern).
         $this->assertRequiredFieldsComplete($template->requiredFieldKeys(), $version->data ?? []);
-        $this->assertWithinQuota($passport);
 
         return DB::transaction(function () use ($passport, $version) {
+            // Serialize publishes within an organization so two concurrent publishes cannot
+            // both pass the quota check. Two-arg advisory-lock keyspace (distinct from the
+            // single-arg login lock); released automatically at transaction end.
+            DB::statement('SELECT pg_advisory_xact_lock(?, hashtext(?))', [1, $passport->organization_id]);
+
+            // Re-read state and enforce quota INSIDE the lock, where the count is accurate.
+            $passport->refresh();
+            if ($passport->isPublished()) {
+                return $passport; // another concurrent request already published it
+            }
+            $this->assertWithinQuota($passport);
+
             // Lock the master data: hash it and freeze it (append-only from here).
             $version->update([
                 'content_hash' => CanonicalJson::hash($version->data ?? []),

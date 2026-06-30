@@ -49,7 +49,7 @@ passport page. No payments, no CSS.
 ### DPP product layer
 - ✅ Generic template seeded (`TemplateSeeder`); product created behind the passport wizard
 - ✅ DPP create + edit driven by the template field-schema (plain HTML form)
-- ✅ Draft -> Publish workflow (`PassportPublisher`): required-field gate, **server-side quota enforcement**, master data locked (version + canonical SHA-256 hash), retention date set. Verified by tests.
+- ✅ Draft -> Publish workflow (`PassportPublisher`): required-field gate, **server-side quota enforcement (concurrency-safe: per-org advisory lock + quota re-check inside the transaction)**, master data locked (version + canonical SHA-256 hash), retention date set. Verified by tests.
 - ✅ Identifiers: GS1 Digital Link (`/01/{GTIN}/21/{serial}`) + fallback UUID (`/p/{uuid}`) via `Passport::resolverUrl()`
 - ✅ QR generation (SVG, vector/print-scalable) via `bacon/bacon-qr-code`
 - ⬜ Print-ready PNG export (Imagick) - SVG done, PNG later
@@ -59,7 +59,7 @@ passport page. No payments, no CSS.
 - ✅ `published_snapshots` built on publish (`SnapshotBuilder`, consumer + full audiences); resolver reads ONE snapshot row
 - ✅ Consumer view (plain HTML, no auth); drafts/unknown ids return 404
 - ✅ Scan logging into partitioned `scan_events` (`ScanLogger`, HMAC-hashed IP)
-- ✅ Route-model binding is tenant-safe (explicit org constraint in `BelongsToOrganization::resolveRouteBinding`, independent of middleware order) - covered by test
+- ✅ Route-model binding is tenant-safe: `BelongsToOrganization::resolveRouteBinding` constrains to a **membership-validated** org (shared `User::currentOrganizationIdIfMember`) and binds nothing (404) when no valid org - independent of middleware order, safe against a revoked membership with a stale current_organization_id. Covered by tests.
 
 ### Dashboard
 - ✅ Basic dashboard + passport list (status), shared `layouts/app` chrome - unstyled baseline

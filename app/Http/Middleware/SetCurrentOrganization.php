@@ -18,23 +18,17 @@ class SetCurrentOrganization
     {
         $user = Auth::user();
 
-        if ($user && $user->current_organization_id) {
-            // Trust the stored org only if the user is STILL a member of it. A revoked
-            // membership (or tampered value) must not grant tenant access.
-            $isMember = $user->organizations()
-                ->whereKey($user->current_organization_id)
-                ->exists();
+        if ($user) {
+            // Membership-validated org (handles a revoked membership / stale column).
+            $orgId = $user->currentOrganizationIdIfMember();
 
-            if ($isMember) {
-                app()->instance('currentOrganizationId', $user->current_organization_id);
-            } else {
-                // Fall back to any remaining membership, or clear it.
-                $fallback = $user->organizations()->first();
-                $user->forceFill(['current_organization_id' => $fallback?->id])->save();
+            if ($orgId !== null) {
+                app()->instance('currentOrganizationId', $orgId);
+            }
 
-                if ($fallback) {
-                    app()->instance('currentOrganizationId', $fallback->id);
-                }
+            // Repair the stored column if it drifted from the validated value.
+            if ($orgId !== $user->current_organization_id) {
+                $user->forceFill(['current_organization_id' => $orgId])->save();
             }
         }
 

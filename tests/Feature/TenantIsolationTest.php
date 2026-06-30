@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\Passport;
 use App\Models\Product;
 use App\Models\Template;
 use App\Models\User;
@@ -78,6 +79,33 @@ class TenantIsolationTest extends TestCase
 
         $user->refresh();
         $this->assertSame($orgA->id, $user->current_organization_id);
+    }
+
+    public function test_route_binding_rejects_a_revoked_membership(): void
+    {
+        $org = $this->makeOrg('A');
+        $product = $this->makeProduct($org, 'P');
+        $passport = Passport::create([
+            'organization_id' => $org->id,
+            'product_id' => $product->id,
+            'public_id' => (string) Str::uuid(),
+            'identifier_scheme' => 'self',
+            'status' => 'draft',
+            'default_locale' => 'lv',
+        ]);
+
+        $user = User::create(['name' => 'U', 'email' => 'u@example.com', 'email_verified_at' => now()]);
+        $org->members()->attach($user->id, ['role' => 'owner']);
+        $user->forceFill(['current_organization_id' => $org->id])->save();
+
+        // Revoke membership but leave the stale current_organization_id behind.
+        $org->members()->detach($user->id);
+
+        // Simulate route binding running BEFORE the org-context middleware (nothing bound).
+        $this->actingAs($user);
+        app()->forgetInstance('currentOrganizationId');
+
+        $this->assertNull((new Passport)->resolveRouteBinding($passport->id));
     }
 
     private function makeOrg(string $label): Organization

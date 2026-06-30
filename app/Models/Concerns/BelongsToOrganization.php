@@ -33,23 +33,26 @@ trait BelongsToOrganization
     /**
      * Tenant-safe route-model binding. The global scope only constrains the query when the
      * org context is already bound, but route binding (SubstituteBindings) can run before the
-     * org-context middleware. So we ALSO constrain explicitly here to the current org (from the
-     * container, or the authenticated user's current org) -- a foreign id then resolves to null
-     * (404) regardless of middleware ordering.
+     * org-context middleware. So we resolve the tenant explicitly here, using the SAME
+     * membership-validated org as the middleware (so a revoked membership with a stale
+     * current_organization_id cannot bind that org's records), and bind NOTHING (404) when no
+     * valid org can be determined -- never an unconstrained lookup that could expose all tenants.
      */
     public function resolveRouteBinding($value, $field = null)
     {
-        $field ??= $this->getRouteKeyName();
-        $query = $this->newQuery()->where($this->getTable().'.'.$field, $value);
-
         $orgId = app()->bound('currentOrganizationId')
             ? app('currentOrganizationId')
-            : Auth::user()?->current_organization_id;
+            : Auth::user()?->currentOrganizationIdIfMember();
 
-        if ($orgId !== null) {
-            $query->where($this->getTable().'.organization_id', $orgId);
+        if ($orgId === null) {
+            return null;
         }
 
-        return $query->first();
+        $field ??= $this->getRouteKeyName();
+
+        return $this->newQuery()
+            ->where($this->getTable().'.'.$field, $value)
+            ->where($this->getTable().'.organization_id', $orgId)
+            ->first();
     }
 }
