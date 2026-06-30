@@ -14,11 +14,35 @@ class Organization extends Model
     protected $fillable = [
         'name', 'slug', 'plan', 'status', 'vat_id', 'custom_domain',
         'published_quota_override', 'price_override', 'interval_override',
+        'legal_name', 'registration_number', 'address_line1', 'address_line2',
+        'city', 'postal_code', 'country', 'contact_name', 'contact_email',
+        'contact_phone', 'onboarding_completed_at',
+    ];
+
+    protected $casts = [
+        'onboarding_completed_at' => 'datetime',
     ];
 
     public function isSuspended(): bool
     {
         return $this->status === 'suspended';
+    }
+
+    public function isOnboarded(): bool
+    {
+        return $this->onboarding_completed_at !== null;
+    }
+
+    /** Human-readable country name from the tax config. */
+    public function countryName(): ?string
+    {
+        return $this->country ? config("tax.countries.{$this->country}.name") : null;
+    }
+
+    /** Standard VAT rate (%) for this org's country (applied later at billing time). */
+    public function taxRate(): ?float
+    {
+        return $this->country ? config("tax.countries.{$this->country}.vat") : null;
     }
 
     public function members(): BelongsToMany

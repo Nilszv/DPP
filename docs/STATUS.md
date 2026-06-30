@@ -46,6 +46,13 @@ passport page. No payments, no CSS.
 - ✅ GitHub Actions CI: Postgres 14 service, Composer, Pint (`--test`), PHPUnit, npm build
 - ✅ `.env.example` updated to the real project (Postgres, DPP env vars, app name, SMTP)
 
+### Onboarding & legal
+- ✅ **First-run onboarding** (`onboarded` middleware): a new org is forced through a flow that collects the **company profile** (legal name, address, contact person) and **country** (drives tax %), and requires **explicit acceptance of every legal document** before using the app. Reading is nudged via a scroll-to-enable checkbox; acceptance is enforced server-side.
+- ✅ **Editable legal documents** (DB-driven, versioned): admin `/admin/legal` editor (the "registration policy" the policy maker edits). Changing the text bumps the version.
+- ✅ **Acceptance audit trail** (`legal_acceptances`): records which org/user accepted which document version, when, with an HMAC-hashed IP - evidence for the 10-year duty.
+- ✅ **Company profile page** (`/app/organization`): shows the captured data + applicable VAT; owner/admin can edit. Shared `company-fields` partial keeps the form easy to adjust in one place.
+- ✅ **Country + VAT config** (`config/tax.php`, EU-27 + a few others): single source for the country dropdown and the tax rate applied later at billing time.
+
 ### DPP product layer
 - ✅ Generic template seeded (`TemplateSeeder`); product created behind the passport wizard
 - ✅ DPP create + edit driven by the template field-schema (plain HTML form)

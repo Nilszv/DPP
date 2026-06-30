@@ -23,10 +23,13 @@ h2 { font-size: 1.2rem; }
 
 input[type="text"],
 input[type="email"],
-input[type="number"] {
+input[type="number"],
+select,
+textarea {
     padding: 0.4rem;
     min-width: 16rem;
 }
+textarea { width: 100%; }
 
 .field-error { color: #b00020; }
 .muted { color: #666; }
@@ -37,3 +40,13 @@ th, td { text-align: left; padding: 0.3rem 0.7rem; border-bottom: 1px solid #ddd
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
 dt { font-weight: 600; }
 dd { margin: 0; }
+
+/* Scrollable legal-text box (onboarding). Must scroll to the bottom to enable the checkbox. */
+.legal-body {
+    max-height: 240px;
+    overflow: auto;
+    border: 1px solid #ccc;
+    padding: 0.5rem 0.75rem;
+    white-space: pre-wrap;
+    margin-bottom: 0.5rem;
+}

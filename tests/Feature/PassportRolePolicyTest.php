@@ -24,7 +24,7 @@ class PassportRolePolicyTest extends TestCase
         $this->seed(TemplateSeeder::class);
         $this->org = Organization::create([
             'name' => 'Acme', 'slug' => 'acme-'.Str::lower(Str::random(6)),
-            'plan' => 'free', 'status' => 'active',
+            'plan' => 'free', 'status' => 'active', 'onboarding_completed_at' => now(),
         ]);
     }
 

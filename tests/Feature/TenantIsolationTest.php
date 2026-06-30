@@ -115,6 +115,7 @@ class TenantIsolationTest extends TestCase
             'slug' => 'org-'.Str::lower($label).'-'.Str::lower(Str::random(6)),
             'plan' => 'free',
             'status' => 'active',
+            'onboarding_completed_at' => now(),
         ]);
     }
 

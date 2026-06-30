@@ -1,11 +1,14 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminLegalController;
 use App\Http\Controllers\Admin\AdminPassportController;
 use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Auth\PasswordlessController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PassportController;
 use App\Http\Controllers\ResolverController;
 use Illuminate\Support\Facades\DB;
@@ -50,11 +53,21 @@ Route::middleware('guest')->group(function () {
 // Logout only needs auth (a suspended-org user must still be able to log out).
 Route::post('/logout', [PasswordlessController::class, 'logout'])->middleware('auth')->name('logout');
 
-// ---- Authenticated platform (/app) ----
+// First-run onboarding (reachable before the org is onboarded; not behind 'onboarded').
 Route::middleware(['auth', 'org.context', 'org.active'])->group(function () {
+    Route::get('/app/onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
+    Route::post('/app/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
+});
+
+// ---- Authenticated platform (/app), requires a completed onboarding ----
+Route::middleware(['auth', 'org.context', 'org.active', 'onboarded'])->group(function () {
     Route::get('/app', function () {
         return view('app.dashboard');
     })->name('dashboard');
+
+    // Organization profile (company data captured at onboarding).
+    Route::get('/app/organization', [OrganizationController::class, 'show'])->name('organization.show');
+    Route::put('/app/organization', [OrganizationController::class, 'update'])->name('organization.update');
 
     // Passport lifecycle: list, create draft, edit fields, view, publish, QR.
     Route::get('/app/passports', [PassportController::class, 'index'])->name('passports.index');
@@ -85,6 +98,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::get('/passports', [AdminPassportController::class, 'index'])->name('passports.index');
     Route::get('/passports/{passport}/qr', [AdminPassportController::class, 'qr'])->name('passports.qr');
+
+    Route::get('/legal', [AdminLegalController::class, 'index'])->name('legal.index');
+    Route::get('/legal/{document}/edit', [AdminLegalController::class, 'edit'])->name('legal.edit');
+    Route::put('/legal/{document}', [AdminLegalController::class, 'update'])->name('legal.update');
 
     Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
     Route::get('/plans/create', [AdminPlanController::class, 'create'])->name('plans.create');

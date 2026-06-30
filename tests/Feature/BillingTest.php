@@ -117,6 +117,7 @@ class BillingTest extends TestCase
             'slug' => 'org-'.Str::lower(Str::random(8)),
             'plan' => $plan,
             'status' => 'active',
+            'onboarding_completed_at' => now(),
         ]);
     }
 

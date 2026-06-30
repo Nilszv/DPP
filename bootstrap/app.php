@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\EnsureOrganizationActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\SetCurrentOrganization;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'org.context' => SetCurrentOrganization::class,
             'org.active' => EnsureOrganizationActive::class,
+            'onboarded' => EnsureOnboarded::class,
             'admin' => EnsureUserIsAdmin::class,
         ]);
     })
