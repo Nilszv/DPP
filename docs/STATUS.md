@@ -47,7 +47,7 @@ passport page. No payments, no CSS.
 - ✅ `.env.example` updated to the real project (Postgres, DPP env vars, app name, SMTP)
 
 ### Onboarding & legal
-- ✅ **First-run onboarding** (`onboarded` middleware): a new org is forced through a flow that collects the **company profile** (legal name, address, contact person) and **country** (drives tax %), and requires **explicit acceptance of every legal document** before using the app. Reading is nudged via a scroll-to-enable checkbox; acceptance is enforced server-side.
+- ✅ **First-run onboarding** (`onboarded` middleware): a new org is forced through a flow that collects the **company profile** (legal name, address, contact person) and **country** (drives tax %), and requires **explicit acceptance of every legal document** before using the app. Reading is nudged via a scroll-to-enable checkbox; acceptance is enforced server-side. `store()` refuses to re-run once onboarded (no profile overwrite via re-POST) and aborts if no policies are configured. The registration policy is guaranteed by a migration, not just the seeder.
 - ✅ **Editable legal documents** (DB-driven, versioned): admin `/admin/legal` editor (the "registration policy" the policy maker edits). Changing the text bumps the version.
 - ✅ **Acceptance audit trail** (`legal_acceptances`): records which org/user accepted which document version, when, with an HMAC-hashed IP - evidence for the 10-year duty.
 - ✅ **Company profile page** (`/app/organization`): shows the captured data + applicable VAT; owner/admin can edit. Shared `company-fields` partial keeps the form easy to adjust in one place.
@@ -103,6 +103,7 @@ passport page. No payments, no CSS.
 - ⏸️ SSO (SAML/OIDC), advanced analytics export
 
 ## Cross-cutting (later, tracked here so nothing is lost)  ⏸️
+- ✅ Admin search (passports + organizations) backed by `pg_trgm` GIN indexes so leading-wildcard ILIKE stays fast at scale
 - ⏸️ Redis cache + CDN edge in front of snapshots (designed-for now, added when traffic needs it)
 - ⏸️ Read replicas; tenant-hash partitioning of `passports`
 - ⏸️ Styling / design system (designer fills in SCSS over the plain semantic HTML)

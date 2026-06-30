@@ -33,7 +33,18 @@ class OnboardingController extends Controller
     public function store(Request $request)
     {
         $org = $this->currentOrg();
+
+        // Onboarding is a one-time flow. Once complete, profile edits must go through the
+        // owner/admin-gated profile page -- not a re-POST here (which any member could do).
+        if ($org->isOnboarded()) {
+            return redirect()->route('dashboard');
+        }
+
         $documents = LegalDocument::requiredForAcceptance();
+
+        // Never let onboarding complete without any policy acceptance. If the catalogue is
+        // empty (e.g. a deploy that migrated but did not seed), this is a misconfiguration.
+        abort_if($documents->isEmpty(), 503, 'Registration is temporarily unavailable. Please try again shortly.');
 
         // Company profile rules (easy to adjust: edit this list).
         $rules = [

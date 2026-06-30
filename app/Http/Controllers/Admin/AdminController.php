@@ -40,7 +40,8 @@ class AdminController extends Controller
                 $w->where('name', 'ILIKE', "%{$q}%")
                     ->orWhere('legal_name', 'ILIKE', "%{$q}%")
                     ->orWhere('contact_email', 'ILIKE', "%{$q}%")
-                    ->orWhereHas('members', fn ($m) => $m->where('email', 'ILIKE', "%{$q}%"));
+                    // email is citext; cast so the (email::text) trigram index is usable.
+                    ->orWhereHas('members', fn ($m) => $m->whereRaw('email::text ILIKE ?', ["%{$q}%"]));
             });
         }
 

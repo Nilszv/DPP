@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\LegalAcceptance;
+use App\Models\LegalDocument;
 use App\Models\Organization;
 use App\Models\User;
 use Database\Seeders\LegalDocumentSeeder;
@@ -70,6 +71,31 @@ class OnboardingTest extends TestCase
 
         // After onboarding the app is reachable.
         $this->actingAs($user)->get('/app')->assertOk();
+    }
+
+    public function test_cannot_re_onboard_an_already_onboarded_org(): void
+    {
+        [$user, $org] = $this->makeUserOrg(onboarded: true, role: 'viewer');
+        $org->update(['legal_name' => 'Original Co']);
+
+        // A member re-POSTing onboarding must NOT overwrite the company profile.
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload(['legal_name' => 'Hijacked Co']))
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertSame('Original Co', $org->fresh()->legal_name);
+    }
+
+    public function test_onboarding_aborts_when_no_policies_are_configured(): void
+    {
+        LegalDocument::query()->delete();   // simulate a deploy that did not seed
+        [$user, $org] = $this->makeUserOrg();
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload())
+            ->assertStatus(503);
+
+        $this->assertFalse($org->fresh()->isOnboarded());
     }
 
     private function makeUserOrg(bool $onboarded = false, string $role = 'owner'): array
