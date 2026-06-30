@@ -49,10 +49,13 @@ class PassportPublisher
             // single-arg login lock); released automatically at transaction end.
             DB::statement('SELECT pg_advisory_xact_lock(?, hashtext(?))', [1, $passport->organization_id]);
 
-            // Re-read state and enforce quota INSIDE the lock, where the count is accurate.
+            // Re-read state INSIDE the lock so a status/quota change that landed mid-flight wins.
             $passport->refresh();
             if ($passport->isPublished()) {
                 return $passport; // another concurrent request already published it
+            }
+            if ($passport->organization()->value('status') === 'suspended') {
+                throw new PublishException('This organization is suspended and cannot publish passports.');
             }
             $this->assertWithinQuota($passport);
 

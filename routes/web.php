@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminPassportController;
 use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Auth\PasswordlessController;
 use App\Http\Controllers\BillingController;
@@ -76,6 +77,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/organizations', [AdminController::class, 'organizations'])->name('organizations');
     Route::get('/organizations/{organization}/edit', [AdminController::class, 'editOrganization'])->name('organizations.edit');
     Route::put('/organizations/{organization}', [AdminController::class, 'updateOrganization'])->name('organizations.update');
+
+    Route::get('/passports', [AdminPassportController::class, 'index'])->name('passports.index');
+    Route::get('/passports/{passport}/qr', [AdminPassportController::class, 'qr'])->name('passports.qr');
 
     Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
     Route::get('/plans/create', [AdminPlanController::class, 'create'])->name('plans.create');

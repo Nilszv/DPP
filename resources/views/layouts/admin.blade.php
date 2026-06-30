@@ -13,6 +13,7 @@
         <nav class="app-nav" aria-label="Admin">
             <a href="{{ route('admin.overview') }}">Overview</a>
             <a href="{{ route('admin.organizations') }}">Organizations</a>
+            <a href="{{ route('admin.passports.index') }}">QR codes</a>
             <a href="{{ route('admin.plans.index') }}">Plans</a>
             <a href="{{ route('dashboard') }}">Back to app</a>
             <form method="POST" action="{{ route('logout') }}">

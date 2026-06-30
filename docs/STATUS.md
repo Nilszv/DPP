@@ -78,6 +78,7 @@ passport page. No payments, no CSS.
 - ✅ `/admin` back-office (separate layout, super-admin only): platform analytics overview (orgs, users, passports, scans, plan distribution)
 - ✅ Organization management: list all orgs, change plan, set **per-org overrides** (published-quota, **custom price + billing interval** for commercial deals), suspend/activate. Suspension is **enforced**: a suspended org is blocked from `/app` (`org.active` middleware) and from publishing (publisher guard); the public resolver still serves its published passports (never 404).
 - ✅ **DB-driven plans** (`plans` table + `Plan` model): create/edit plans, prices, quotas (null = unlimited), public/active flags, custom non-public plans. `Organization::publishedQuota()` precedence: per-org override -> DB plan -> config fallback. Verified by tests.
+- ✅ **QR / passport browser** (`/admin/passports`): platform-wide, paginated (20/page, never loads everything), filter by organization + status, search by public id / GTIN / serial / product name, lazy-loaded QR thumbnails. Verified by tests.
 - ⏸️ Impersonation (log in as a user, with audit) - next
 - ⏸️ Published-DPP lifecycle tools (archive, legal holds, migrations)
 
