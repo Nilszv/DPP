@@ -71,7 +71,7 @@ passport page. No payments, no CSS.
 - ⏸️ **Stripe** driver (`StripeBillingProvider` via Cashier): add when a Stripe account exists, set keys, flip `BILLING_DRIVER=stripe`. Placeholders already in config + `.env.example`. UI/plans/quota do not change.
 - ⏸️ EU VAT handling (OSS, reverse charge), compliant invoices
 - ⏸️ Dunning / failed-payment / grace period
-- ⏸️ **Lapse policy** for published DPPs after cancellation (REQUIRED before real launch - Free allows published, so the 10-year duty applies to churned free users). Manual downgrade currently keeps existing published passports and only gates NEW publishes.
+- 🔨 **Lapse policy** for published DPPs (partial): **self-service downgrade is blocked when the org has more published passports than the target plan allows** (`Organization::fitsPlan`), enforced server-side in `BillingController::switchPlan` and reflected in the UI (blocked plans show "Contact sales"). A **Contact sales modal** (textarea) emails `dpp.sales_email` (`dev@vdisain.lv`) for downgrade/custom-plan requests. Still open: what actually happens to published DPPs on full cancellation / non-payment (archive vs. perpetual-hosting SKU vs. 3rd-party transfer).
 
 ## Platform back-office (super-admin)  §2.6
 - ✅ Super-admin flag (`users.is_admin`), `admin` middleware, `php artisan admin:grant {email}` command

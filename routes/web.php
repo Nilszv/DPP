@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminPassportController;
 use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Auth\PasswordlessController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\PassportController;
 use App\Http\Controllers\ResolverController;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +69,10 @@ Route::middleware(['auth', 'org.context', 'org.active'])->group(function () {
     // Plan & billing (manual mode until Stripe is configured).
     Route::get('/app/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::post('/app/billing/switch', [BillingController::class, 'switchPlan'])->name('billing.switch');
+
+    // Contact sales (downgrade requests / custom plans) -> sales inbox.
+    Route::post('/app/contact-sales', [ContactController::class, 'sendSales'])
+        ->middleware('throttle:5,1')->name('contact.sales');
 });
 
 // ---- Platform back-office (super-admin only) ----

@@ -86,4 +86,15 @@ class Organization extends Model
     {
         return $this->passports()->where('status', 'published')->count();
     }
+
+    /**
+     * Whether this org may switch to the given plan. A downgrade is blocked when the org
+     * already has more published passports than the target plan allows: published passports
+     * are a 10+ year hosting duty, so someone must keep paying for them. Such a move must go
+     * through sales (contact form), never self-service.
+     */
+    public function fitsPlan(Plan $plan): bool
+    {
+        return $this->publishedCount() <= $plan->effectiveQuota();
+    }
 }

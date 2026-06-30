@@ -45,10 +45,19 @@
                         </td>
                         <td>{{ $plan->published_quota === null ? 'Unlimited' : $plan->published_quota }}</td>
                         <td>
+                            @php($fits = $published <= ($plan->published_quota ?? PHP_INT_MAX))
                             @if ($plan->key === $org->plan)
                                 <span class="muted">Current</span>
-                            @elseif ($plan->price === null)
-                                <span class="muted">Contact sales</span>
+                            @elseif ($plan->price === null || ! $fits)
+                                {{-- Custom plan, or a downgrade that would strand published passports. --}}
+                                @if ($canManage)
+                                    <button type="button" onclick="openContactSales('{{ $plan->name }}')">Contact sales</button>
+                                    @unless ($fits)
+                                        <div class="muted">Too many published passports to downgrade.</div>
+                                    @endunless
+                                @else
+                                    <span class="muted">Contact sales</span>
+                                @endif
                             @elseif ($canManage)
                                 <form method="POST" action="{{ route('billing.switch') }}">
                                     @csrf
@@ -62,4 +71,33 @@
             </tbody>
         </table>
     </section>
+
+    {{-- Contact sales modal (native dialog; minimal JS to open/close). --}}
+    <dialog id="contactSales">
+        <form method="POST" action="{{ route('contact.sales') }}">
+            @csrf
+            <input type="hidden" name="interest" id="contactInterest" value="">
+            <h2>Contact sales</h2>
+            <p class="muted">
+                Tell us what you need (for example a downgrade, or a custom plan) and we will get back to you.
+                Published passports must stay hosted for 10+ years, so downgrades are arranged with us.
+            </p>
+            <div class="form-row">
+                <label for="contactMessage">Message</label>
+                <textarea id="contactMessage" name="message" rows="5" required></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit">Send</button>
+                <button type="button" onclick="document.getElementById('contactSales').close()">Cancel</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script>
+        function openContactSales(interest) {
+            var field = document.getElementById('contactInterest');
+            if (field) { field.value = interest || ''; }
+            document.getElementById('contactSales').showModal();
+        }
+    </script>
 @endsection

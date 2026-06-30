@@ -39,9 +39,21 @@ class BillingController extends Controller
 
         $data = $request->validate(['plan' => ['required', Rule::in($selectable)]]);
 
-        $billing->changePlan($this->currentOrg(), $data['plan']);
+        $org = $this->currentOrg();
+        $target = Plan::where('key', $data['plan'])->first();
 
-        return back()->with('status', 'Plan updated to '.Plan::where('key', $data['plan'])->value('name').'.');
+        // Block self-service downgrades that would strand already-published passports
+        // (10+ year hosting duty). These must go through sales.
+        if (! $org->fitsPlan($target)) {
+            return back()->with('error',
+                'You have '.$org->publishedCount().' published passport(s); the '.$target->name.' plan allows '
+                .($target->published_quota ?? 'unlimited').'. Published passports must stay hosted, so a downgrade '
+                .'has to be arranged with sales. Please use Contact sales.');
+        }
+
+        $billing->changePlan($org, $data['plan']);
+
+        return back()->with('status', 'Plan updated to '.$target->name.'.');
     }
 
     private function currentOrg(): Organization
