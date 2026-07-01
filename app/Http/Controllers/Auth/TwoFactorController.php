@@ -36,6 +36,13 @@ class TwoFactorController extends Controller
             return redirect()->route('login');
         }
 
+        // Already confirmed -- a stale/remembered session must not be able to silently replace
+        // an existing secret. Re-setup only happens via an explicit, code-confirmed reset
+        // (Admin\AdminTwoFactorController::reset()) or the admin:reset-2fa operator command.
+        if ($user->hasTwoFactorConfirmed()) {
+            return redirect()->route(Auth::check() ? '2fa.reverify' : '2fa.verify');
+        }
+
         if (! $request->session()->has('2fa.setup_secret')) {
             $request->session()->put('2fa.setup_secret', $this->twoFactor->generateSecret());
         }
@@ -52,6 +59,10 @@ class TwoFactorController extends Controller
         $user = $this->targetUser($request);
         if (! $user) {
             return redirect()->route('login');
+        }
+
+        if ($user->hasTwoFactorConfirmed()) {
+            return redirect()->route(Auth::check() ? '2fa.reverify' : '2fa.verify');
         }
 
         $secret = $request->session()->get('2fa.setup_secret');

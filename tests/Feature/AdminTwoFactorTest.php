@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\LoginCodeService;
 use App\Services\TwoFactorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -136,6 +137,41 @@ class AdminTwoFactorTest extends TestCase
         $this->get(route('admin.overview'))->assertOk();
     }
 
+    public function test_a_confirmed_admin_cannot_silently_replace_their_secret_via_setup(): void
+    {
+        [$admin, $originalSecret] = $this->makeConfirmedAdmin();
+
+        // Stale/remembered session: authenticated, confirmed, but this session never set the
+        // 2fa.passed flag -- exactly the state a hijacked/leaked session cookie would carry.
+        $this->actingAs($admin);
+
+        $this->get(route('2fa.setup'))->assertRedirect(route('2fa.reverify'));
+
+        $newSecret = app(TwoFactorService::class)->generateSecret();
+        $code = app(Google2FA::class)->getCurrentOtp($newSecret);
+        $this->withSession(['2fa.setup_secret' => $newSecret])
+            ->post(route('2fa.setup.confirm'), ['code' => $code])
+            ->assertRedirect(route('2fa.reverify'));
+
+        $this->assertSame($originalSecret, $admin->fresh()->two_factor_secret);
+    }
+
+    public function test_promotion_to_admin_mid_session_does_not_bypass_setup(): void
+    {
+        $user = User::create(['name' => 'U', 'email' => 'promoted@example.com', 'email_verified_at' => now()]);
+
+        // A session flag alone must never be enough: simulate the worst case where
+        // session('2fa.passed') is already true (however that happened) on a user who has
+        // never configured 2FA -- the middleware must still force setup.
+        $this->actingAs($user)->withSession(['2fa.passed' => true]);
+        $this->get('/app')->assertOk();
+
+        // Promoted to admin while this same session is still alive.
+        $user->forceFill(['is_admin' => true])->save();
+
+        $this->get(route('admin.overview'))->assertRedirect(route('2fa.setup'));
+    }
+
     public function test_lockout_after_max_attempts_blocks_further_tries(): void
     {
         [$admin, $secret] = $this->makeConfirmedAdmin();
@@ -182,6 +218,19 @@ class AdminTwoFactorTest extends TestCase
 
         // A stale session with no 2fa.passed flag is fine -- /app has no 2FA gate at all.
         $this->actingAs($user)->get('/app')->assertOk();
+    }
+
+    public function test_a_normal_non_admin_login_never_sets_the_2fa_passed_flag(): void
+    {
+        $user = User::create(['name' => 'U', 'email' => 'plain3@example.com', 'email_verified_at' => now()]);
+        $code = app(LoginCodeService::class)->issue($user->email);
+
+        $this->withSession(['login.email' => $user->email])
+            ->post(route('login.verify'), ['code' => $code])
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticated();
+        $this->assertNull(session('2fa.passed'));
     }
 
     private function makeAdmin(): User

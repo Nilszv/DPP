@@ -117,10 +117,13 @@ class PasswordlessController extends Controller
         }
 
         // Persistent "remember me" is opt-in, not forced.
+        // No session('2fa.passed') here: it's meaningless for a non-admin, and setting it
+        // would leak into this session if the user is later promoted to admin, letting them
+        // reach /admin/* with no 2FA configured (EnsureAdminTwoFactorVerified checks the flag
+        // together with hasTwoFactorConfirmed(), but there's no reason for this to exist here).
         Auth::login($user, remember: $request->boolean('remember'));
         $request->session()->regenerate();
         $request->session()->forget('login.email');
-        $request->session()->put('2fa.passed', true);
 
         return redirect()->intended(route('dashboard'));
     }
