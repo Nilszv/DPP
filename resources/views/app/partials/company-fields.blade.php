@@ -115,7 +115,8 @@
 
 <script type="application/json" id="country-meta">{!! json_encode($countryMeta, JSON_UNESCAPED_SLASHES) !!}</script>
 <script>
-// Country-aware VAT + phone helpers. Client-side only; the server accepts these as-is.
+// Country-aware VAT + phone helpers. UX only: the server independently canonicalizes and
+// validates the VAT (App\Support\VatNumber) and runs the duplicate guard, so it never trusts these.
 (function () {
     var metaEl = document.getElementById('country-meta');
     var country = document.getElementById('country');
