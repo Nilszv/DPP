@@ -37,6 +37,26 @@ textarea { width: 100%; }
 /* Small helper text under a field (e.g. the country-aware VAT / phone hints). */
 .field-hint { color: #666; font-size: 0.85rem; margin: 0.2rem 0 0; }
 
+/* Prefix + input pairing (locked VAT country prefix; phone dialing-code dropdown + number). */
+.input-group { display: flex; align-items: stretch; }
+.input-group > input { min-width: 0; }
+.input-prefix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.55rem;
+    background: #f2f2f2;
+    border: 1px solid #ccc;
+    border-right: 0;
+    border-radius: 3px 0 0 3px;
+    color: #333;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.input-prefix[hidden] { display: none; }
+.input-group #phone_country { flex: 0 0 auto; border-radius: 3px 0 0 3px; }
+.input-group #phone_national,
+.input-prefix + input { border-radius: 0 3px 3px 0; }
+
 /* Subtle invalid state, only after the user has interacted (falls back gracefully where
    :user-invalid is unsupported: no styling, never a false-positive red border on load). */
 input:user-invalid,
