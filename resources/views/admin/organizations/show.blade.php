@@ -65,6 +65,14 @@
                                     <button type="submit" class="button-secondary">Lift suspension</button>
                                 </form>
                             @endif
+                            @unless ($member->is(auth()->user()))
+                                <form method="POST" action="{{ route('admin.users.delete', $member) }}"
+                                      onsubmit="return confirm('Delete {{ $member->email }}? This also deletes any organization where they are the sole member, and cannot be undone.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="button-secondary">Delete user</button>
+                                </form>
+                            @endunless
                         </td>
                     </tr>
                 @endforeach

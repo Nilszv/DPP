@@ -205,6 +205,62 @@ class AdminBackofficeTest extends TestCase
             ->assertSee('Riga');
     }
 
+    public function test_admin_can_delete_a_sole_member_user_and_their_organization(): void
+    {
+        $org = $this->org('free');
+        $user = $this->member($org, 'solo@example.com');
+
+        $this->actingAs($this->admin())
+            ->delete(route('admin.users.delete', $user))
+            ->assertRedirect(route('admin.organizations'));
+
+        $this->assertNull(User::find($user->id));
+        $this->assertNull(Organization::find($org->id));
+    }
+
+    public function test_admin_deleting_a_user_only_removes_their_membership_from_a_shared_org(): void
+    {
+        $org = $this->org('free');
+        $owner = $this->member($org, 'owner@example.com');
+        $editor = User::create(['name' => 'E', 'email' => 'editor@example.com', 'email_verified_at' => now()]);
+        $org->members()->attach($editor->id, ['role' => 'editor']);
+
+        $this->actingAs($this->admin())
+            ->delete(route('admin.users.delete', $editor))
+            ->assertRedirect(route('admin.organizations'));
+
+        $this->assertNull(User::find($editor->id));
+        $this->assertNotNull(Organization::find($org->id));
+        $this->assertTrue($org->fresh()->members()->whereKey($owner->id)->exists());
+    }
+
+    public function test_admin_cannot_delete_the_sole_owner_of_an_org_with_other_members(): void
+    {
+        $org = $this->org('free');
+        $owner = $this->member($org, 'owner2@example.com');
+        $editor = User::create(['name' => 'E2', 'email' => 'editor2@example.com', 'email_verified_at' => now()]);
+        $org->members()->attach($editor->id, ['role' => 'editor']);
+
+        $this->actingAs($this->admin())
+            ->delete(route('admin.users.delete', $owner))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertNotNull(User::find($owner->id));
+    }
+
+    public function test_admin_cannot_delete_their_own_account(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.delete', $admin))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertNotNull(User::find($admin->id));
+    }
+
     private function member(Organization $org, string $email): User
     {
         $user = User::create(['name' => 'M', 'email' => $email, 'email_verified_at' => now()]);

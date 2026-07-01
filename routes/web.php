@@ -129,6 +129,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Lift a user-level suspension (e.g. after resolving a duplicate-registration case).
     Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->name('users.unsuspend');
 
+    // Delete a user (support/testing tool, e.g. to retest onboarding from scratch).
+    Route::delete('/users/{user}', [AdminController::class, 'deleteUser'])->name('users.delete');
+
     Route::get('/passports', [AdminPassportController::class, 'index'])->name('passports.index');
     Route::get('/passports/{passport}/qr', [AdminPassportController::class, 'qr'])->name('passports.qr');
 

@@ -134,4 +134,40 @@ class AdminController extends Controller
 
         return back()->with('status', "Lifted suspension for {$user->email}.");
     }
+
+    /**
+     * Delete a user (support/testing tool, e.g. to retest onboarding from scratch). Also deletes
+     * any organization where they are the sole member: the duplicate-registration guard matches
+     * on organization fields (name/registration/VAT), not the user, so an orphaned org would
+     * still block re-onboarding with the same company details.
+     */
+    public function deleteUser(User $user)
+    {
+        if (auth()->id() === $user->id) {
+            return back()->with('error', 'You cannot delete your own account.');
+        }
+
+        $orgs = $user->organizations()->withCount('members')->get();
+
+        foreach ($orgs as $org) {
+            $isSoleOwner = $org->pivot->role === 'owner'
+                && $org->members()->wherePivot('role', 'owner')->count() === 1;
+
+            if ($org->members_count > 1 && $isSoleOwner) {
+                return back()->with('error', "Cannot delete: sole owner of \"{$org->name}\", which has other members. Reassign ownership first.");
+            }
+        }
+
+        DB::transaction(function () use ($user, $orgs) {
+            foreach ($orgs as $org) {
+                if ($org->members_count === 1) {
+                    $org->delete();
+                }
+            }
+
+            $user->delete();
+        });
+
+        return redirect()->route('admin.organizations')->with('status', "Deleted user {$user->email}.");
+    }
 }
