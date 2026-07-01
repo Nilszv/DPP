@@ -10,6 +10,7 @@ use Database\Seeders\LegalDocumentSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DuplicateRegistrationTest extends TestCase
@@ -48,6 +49,68 @@ class DuplicateRegistrationTest extends TestCase
             ->assertRedirect(route('dashboard'));
 
         $this->assertTrue($org->fresh()->isOnboarded());
+    }
+
+    #[DataProvider('vatFormattingVariants')]
+    public function test_formatting_variant_cannot_bypass_the_duplicate_guard(string $vat): void
+    {
+        $this->existingOrg(); // stored canonical LV40003011283
+        [$user, $org] = $this->makeUserOrg();
+
+        // A hand-crafted POST with a differently formatted VAT must still be caught, because
+        // the server canonicalizes before comparing.
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload(['vat_id' => $vat]))
+            ->assertSessionHasErrors('vat_id');
+
+        $this->assertFalse($org->fresh()->isOnboarded());
+    }
+
+    public static function vatFormattingVariants(): array
+    {
+        return [
+            'spaces + lowercase' => ['lv 4000 3011 283'],
+            'missing prefix' => ['40003011283'],
+            'punctuation' => ['LV-4000.3011.283'],
+        ];
+    }
+
+    public function test_vatless_country_duplicate_is_caught_on_name_and_registration(): void
+    {
+        // Existing US org (no VAT). US onboarding allows a blank VAT, so the guard must fall
+        // back to country + company name + registration number.
+        $this->existingOrg(['country' => 'US', 'vat_id' => null]);
+        [$user, $org] = $this->makeUserOrg();
+
+        $payload = $this->validPayload(['country' => 'US']);
+        unset($payload['vat_id']);
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $payload)
+            ->assertSessionHasErrors('vat_id'); // duplicate error is surfaced on the VAT field
+
+        $this->assertFalse($org->fresh()->isOnboarded());
+    }
+
+    public function test_invalid_vat_format_is_rejected_server_side(): void
+    {
+        [$user] = $this->makeUserOrg();
+
+        // Direct POST bypassing the browser: an LV VAT that is too short must be rejected.
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload(['vat_id' => 'LV123']))
+            ->assertSessionHasErrors('vat_id');
+    }
+
+    public function test_completing_onboarding_stores_a_canonical_vat(): void
+    {
+        [$user, $org] = $this->makeUserOrg();
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload(['vat_id' => 'lv 4000 3011 283']))
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertSame('LV40003011283', $org->fresh()->vat_id);
     }
 
     public function test_exceeding_the_attempt_threshold_suspends_and_alerts_support(): void

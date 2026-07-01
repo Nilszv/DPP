@@ -9,8 +9,10 @@
     - Contact phone: a searchable country-code dropdown selects the dialing code (defaults to
       the company country, changeable for a foreign number); only the national number is typed.
   Both national inputs are combined with their prefix into the hidden vat_id / contact_phone
-  fields the server already expects. All of this is client-side; the server accepts values
-  as-is. Per-country metadata comes from config/tax.php, emitted once as a JSON island.
+  fields the server already expects. This layer is a UX aid only: the server independently
+  canonicalizes and validates the VAT (App\Support\VatNumber) and runs the duplicate-account
+  guard, so it never trusts these values. Per-country metadata comes from config/tax.php,
+  emitted once as a JSON island.
 --}}
 @php
     // Compact metadata for the client script: name, prefix, national VAT pattern, dial code, phone range.

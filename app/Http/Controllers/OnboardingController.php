@@ -7,6 +7,7 @@ use App\Models\LegalAcceptance;
 use App\Models\LegalDocument;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\VatNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -61,7 +62,7 @@ class OnboardingController extends Controller
         $rules = [
             'legal_name' => ['required', 'string', 'max:255'],
             'registration_number' => ['required', 'string', 'max:100'],
-            'vat_id' => ['nullable', Rule::requiredIf(fn () => ! in_array($request->input('country'), $countriesWithoutVat, true)), 'string', 'max:50'],
+            'vat_id' => ['nullable', Rule::requiredIf(fn () => ! in_array($request->input('country'), $countriesWithoutVat, true)), 'string', 'max:50', $this->vatFormatRule($request)],
             'address_line1' => ['required', 'string', 'max:255'],
             'address_line2' => ['nullable', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:120'],
@@ -81,8 +82,13 @@ class OnboardingController extends Controller
             'accept.*.accepted' => 'You must read and accept all policies to complete registration.',
         ]);
 
+        // Canonicalize VAT server-side so storage and the duplicate check both use one form
+        // (a hand-crafted POST cannot slip a formatting variant past the guard).
+        $data['vat_id'] = VatNumber::canonical($data['country'], $data['vat_id'] ?? null);
+
         // Duplicate-account guard: if the company name, registration number AND VAT number
-        // all match an already-registered organization, block completion. Repeated attempts
+        // all match an already-registered organization, block completion (for VAT-less
+        // countries the VAT is dropped and country is matched instead). Repeated attempts
         // suspend the email account (anti-abuse: stops re-registering to farm free plans).
         if ($match = $this->findDuplicateOrganization($org, $data)) {
             return $this->handleDuplicate($request, $match);
@@ -124,33 +130,64 @@ class OnboardingController extends Controller
     }
 
     /**
-     * Find an already-registered organization whose company name, registration number AND
-     * VAT number all match the submitted values (case-insensitive, whitespace-normalized).
-     * Only completed registrations count. Returns null when no full match exists.
+     * A validation rule that rejects a VAT number whose format is wrong for the selected
+     * country (server-side, so it does not depend on the browser). Empty / VAT-less countries
+     * pass; requiredness is enforced separately.
+     */
+    private function vatFormatRule(Request $request): callable
+    {
+        return function (string $attribute, $value, $fail) use ($request) {
+            if (! VatNumber::isValid($request->input('country'), is_string($value) ? $value : null)) {
+                $fail('Enter a valid VAT number for the selected country.');
+            }
+        };
+    }
+
+    /**
+     * Find an already-registered organization that duplicates this one. Company name and
+     * registration number must always match (case-insensitive; whitespace/punctuation
+     * normalized). For countries that operate a VAT number the canonical VAT must also match;
+     * for VAT-less countries (e.g. US) the country is matched instead, so a missing VAT cannot
+     * be used to slip a duplicate through. Only completed registrations count.
      */
     private function findDuplicateOrganization(Organization $org, array $data): ?Organization
     {
-        $norm = fn (?string $v): string => preg_replace('/\s+/', ' ', mb_strtolower(trim((string) $v)));
+        // legal_name: lower + trim + collapse internal whitespace. Mirrors the SQL below.
+        $legal = preg_replace('/\s+/', ' ', mb_strtolower(trim((string) ($data['legal_name'] ?? ''))));
+        // registration_number: lower + strip all non-alphanumerics (formatting-insensitive).
+        $reg = preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) ($data['registration_number'] ?? '')));
 
-        $legal = $norm($data['legal_name'] ?? '');
-        $reg = $norm($data['registration_number'] ?? '');
-        $vat = $norm($data['vat_id'] ?? '');
-
-        // All three must be present to assert a duplicate (e.g. a VAT-less country cannot).
-        if ($legal === '' || $reg === '' || $vat === '') {
+        if ($legal === '' || $reg === '') {
             return null;
         }
 
-        // Normalize the stored column the same way (lower + trim + collapse whitespace).
-        $col = fn (string $c): string => "regexp_replace(lower(btrim(coalesce($c, ''))), '\\s+', ' ', 'g')";
+        $country = $data['country'] ?? null;
+        // $data['vat_id'] is already canonical (upper, alnum, prefixed) by the caller.
+        $vat = $data['vat_id'] ?? null;
 
-        return Organization::query()
+        $nameCol = "regexp_replace(lower(btrim(coalesce(legal_name, ''))), '\\s+', ' ', 'g')";
+        $regCol = "regexp_replace(lower(coalesce(registration_number, '')), '[^a-z0-9]', '', 'g')";
+        $vatCol = "upper(regexp_replace(coalesce(vat_id, ''), '[^A-Za-z0-9]', '', 'g'))";
+
+        $query = Organization::query()
             ->whereKeyNot($org->id)
             ->whereNotNull('onboarding_completed_at')
-            ->whereRaw($col('legal_name').' = ?', [$legal])
-            ->whereRaw($col('registration_number').' = ?', [$reg])
-            ->whereRaw($col('vat_id').' = ?', [$vat])
-            ->first();
+            ->whereRaw($nameCol.' = ?', [$legal])
+            ->whereRaw($regCol.' = ?', [$reg]);
+
+        if (VatNumber::countryHasVat($country)) {
+            // VAT-operating country: the canonical VAT must also match. A VAT is required for
+            // these countries, so a missing one simply cannot assert (or dodge) a duplicate.
+            if ($vat === null) {
+                return null;
+            }
+            $query->whereRaw($vatCol.' = ?', [$vat]);
+        } else {
+            // VAT-less country: match on country so a blank VAT cannot bypass the guard.
+            $query->where('country', $country);
+        }
+
+        return $query->first();
     }
 
     /**

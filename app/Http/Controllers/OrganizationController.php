@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Organization;
+use App\Support\VatNumber;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -33,7 +34,11 @@ class OrganizationController extends Controller
         $data = $request->validate([
             'legal_name' => ['required', 'string', 'max:255'],
             'registration_number' => ['required', 'string', 'max:100'],
-            'vat_id' => ['nullable', Rule::requiredIf(fn () => ! in_array($request->input('country'), $countriesWithoutVat, true)), 'string', 'max:50'],
+            'vat_id' => ['nullable', Rule::requiredIf(fn () => ! in_array($request->input('country'), $countriesWithoutVat, true)), 'string', 'max:50', function (string $attribute, $value, $fail) use ($request) {
+                if (! VatNumber::isValid($request->input('country'), is_string($value) ? $value : null)) {
+                    $fail('Enter a valid VAT number for the selected country.');
+                }
+            }],
             'address_line1' => ['required', 'string', 'max:255'],
             'address_line2' => ['nullable', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:120'],
@@ -45,6 +50,7 @@ class OrganizationController extends Controller
         ]);
 
         $data['name'] = $data['legal_name'];   // display name mirrors the company name
+        $data['vat_id'] = VatNumber::canonical($data['country'], $data['vat_id'] ?? null);
         $this->currentOrg()->update($data);
 
         return redirect()->route('organization.show')->with('status', 'Company profile updated.');
