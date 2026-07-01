@@ -9,7 +9,7 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 126 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 129 tests pass.
 
 **Just landed (this session): mandatory TOTP two-factor auth for admin users.** Every
 `is_admin` account must complete an authenticator-app (Google Authenticator/Authy-style) code
@@ -17,19 +17,23 @@ before reaching any `/admin/*` page -- immediately and mandatorily on first admi
 skip. Layered on top of the existing passwordless flow: `PasswordlessController::verify()`
 holds off `Auth::login()` for admins and routes them to `/login/2fa/setup` (first time, QR +
 manual secret + 10 bcrypt-hashed one-time recovery codes shown once) or `/login/2fa/verify`
-(already set up) before completing login. A new **session-level** middleware
-(`EnsureAdminTwoFactorVerified`, alias `admin.2fa`) closes a real gap: Laravel's remember-me
-cookie can silently re-authenticate a returning admin on a brand-new session without ever
-going through the login controller again, so the gate checks `session('2fa.passed')` on
-every `/admin/*` request regardless of how the session became authenticated -- a stale/
-remembered session is redirected to re-verify (not logged out) rather than silently let
-through. Lockout after 5 failed codes (15 min, on top of the route throttle). Self-service
-management at `/admin/security` (regenerate recovery codes, reset + redo setup with a step-up
-code confirmation). Operator escape hatch: `php artisan admin:reset-2fa {email}`. TOTP via
+(already set up) before completing login. `EnsureAdminTwoFactorVerified` (`admin.2fa`
+middleware) requires **both** a confirmed setup on the user **and** a per-session flag
+(`session('2fa.passed')`) on every `/admin/*` request -- an external review caught that either
+check alone is bypassable (session flag alone: a user promoted to admin mid-session, or any
+session predating this feature, walks straight in with zero 2FA configured; confirmed-flag
+alone: a remember-me-revived session skips verification for the current session). Also fixed:
+the setup page itself refused to distinguish "first-time setup" from "already confirmed," so a
+stale/hijacked authenticated session could silently overwrite an admin's secret without ever
+proving the existing code -- setup is now refused outright for a confirmed admin. Lockout
+after 5 failed codes (15 min, on top of the route throttle). Self-service management at
+`/admin/security` (regenerate recovery codes, reset + redo setup with a step-up code
+confirmation). Operator escape hatch: `php artisan admin:reset-2fa {email}`. TOTP via
 `pragmarx/google2fa`; QR rendered by the existing `App\Services\QrService` (already used for
-passport QR codes) -- no new QR dependency. Verified end-to-end against the live server with
-a real HTTP flow (not just the test suite). The one pre-existing admin account now gets
-prompted for mandatory setup on its next `/admin/*` visit, as intended -- no grace period.
+passport QR codes) -- no new QR dependency. Verified end-to-end against the live server with a
+real HTTP flow, plus dedicated regression tests for both fixed bypasses. The one pre-existing
+admin account now gets prompted for mandatory setup on its next `/admin/*` visit, as intended --
+no grace period.
 
 **Previously landed: tiered public views (repairer/recycler/authority).** A
 published passport now builds a pre-filtered snapshot for all 5 audiences (`config('dpp.audiences')`,
@@ -77,12 +81,19 @@ abstraction (manual driver, DB-driven plans, downgrade guard + Contact sales) ·
 (invites, seats, org switcher) · admin back-office (overview, orgs search/detail, QR browser,
 plans, legal editor, user unsuspend) · CI.
 
-**Best next steps (pick one):**
-1. **Stripe billing** - needs a Stripe account + the lapse-policy decision first.
+**Best next steps (recommended in order):**
+1. **Admin impersonation** (log in as a user, with audit) - this is why admin 2FA just got
+   hardened first; fully unblocked now, no external decision needed. Needs: an audited
+   "become this user" action from the org detail page (who/when/why, reversible, clearly
+   bannered in the UI so it's never mistaken for the admin's own session), gated to
+   manager-tier admins, and almost certainly a *fresh* 2FA step-up (not just `session('2fa.passed')`
+   from earlier in the session) immediately before starting one, given how sensitive it is.
 2. **Post-publish versioning** (corrections to a published passport) - currently a hard wall:
    `PassportController::edit`/`update` flatly refuse any edit once published, with no
-   correction path at all.
-3. **Real per-category templates** (owner to provide field examples).
+   correction path at all. Pure code, no owner decision needed either.
+3. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
+   product owner; not actionable until then.
+4. **Real per-category templates** - blocked on the owner providing field examples.
 
 **Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
 the legal role (host vs. ESPR service provider), first product category, and final domains.
