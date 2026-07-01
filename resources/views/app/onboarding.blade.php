@@ -15,7 +15,18 @@
             passports. Published passports are a 10+ year hosting commitment, so this step is required.
         </p>
 
-        @if ($errors->any())
+        @if (session('duplicate_notice'))
+            <div class="field-error" role="alert">
+                <p><strong>We found an existing organization matching these details.</strong></p>
+                <p>
+                    If this is your company, please
+                    <a href="{{ route('login') }}">log in with your existing account</a>
+                    instead of registering again. If these details are incorrect, correct the
+                    highlighted field below and try again. Still not sure? Reach out from the
+                    <a href="{{ route('support.show') }}">support page</a>.
+                </p>
+            </div>
+        @elseif ($errors->any())
             <p class="field-error" role="alert">Please correct the highlighted fields below.</p>
         @endif
 

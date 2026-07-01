@@ -86,12 +86,12 @@ class OnboardingController extends Controller
         // (a hand-crafted POST cannot slip a formatting variant past the guard).
         $data['vat_id'] = VatNumber::canonical($data['country'], $data['vat_id'] ?? null);
 
-        // Duplicate-account guard: if the company name, registration number AND VAT number
-        // all match an already-registered organization, block completion (for VAT-less
-        // countries the VAT is dropped and country is matched instead). Repeated attempts
-        // suspend the email account (anti-abuse: stops re-registering to farm free plans).
-        if ($match = $this->findDuplicateOrganization($org, $data)) {
-            return $this->handleDuplicate($request, $match);
+        // Duplicate-account guard: three independent checks, any one of which flags a possible
+        // duplicate -- (1) company name + country, (2) registration number alone, (3) VAT number
+        // alone. Repeated attempts suspend the email account (anti-abuse: stops re-registering
+        // to farm free plans).
+        if ($duplicate = $this->findDuplicateOrganization($org, $data)) {
+            return $this->handleDuplicate($request, $duplicate);
         }
 
         DB::transaction(function () use ($org, $request, $data, $documents) {
@@ -144,70 +144,78 @@ class OnboardingController extends Controller
     }
 
     /**
-     * Find an already-registered organization that duplicates this one. Company name and
-     * registration number must always match (case-insensitive; whitespace/punctuation
-     * normalized). For countries that operate a VAT number the canonical VAT must also match;
-     * for VAT-less countries (e.g. US) the country is matched instead, so a missing VAT cannot
-     * be used to slip a duplicate through. Only completed registrations count.
+     * Find an already-registered organization that duplicates this one. Three independent
+     * guardrails, checked in order -- any single hit flags a possible duplicate:
+     *   1. Company name + country (case/whitespace-insensitive; a name is unique per country).
+     *   2. Registration number alone (formatting-insensitive), regardless of name/country.
+     *   3. VAT number alone (already canonical -- includes the country prefix), regardless of
+     *      name/country.
+     * Each check is independent on purpose: the same company re-registering with a differently
+     * spelled name, or a typo'd/reformatted registration or VAT number, must still be caught by
+     * whichever field it kept consistent. Only completed registrations count as existing.
+     *
+     * @return array{organization: Organization, field: string, label: string}|null
      */
-    private function findDuplicateOrganization(Organization $org, array $data): ?Organization
+    private function findDuplicateOrganization(Organization $org, array $data): ?array
     {
-        // legal_name: lower + trim + collapse internal whitespace. Mirrors the SQL below.
         $legal = preg_replace('/\s+/', ' ', mb_strtolower(trim((string) ($data['legal_name'] ?? ''))));
-        // registration_number: lower + strip all non-alphanumerics (formatting-insensitive).
         $reg = preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) ($data['registration_number'] ?? '')));
-
-        if ($legal === '' || $reg === '') {
-            return null;
-        }
-
         $country = $data['country'] ?? null;
-        // $data['vat_id'] is already canonical (upper, alnum, prefixed) by the caller.
+        // $data['vat_id'] is already canonical (upper, alnum, country-prefixed) by the caller.
         $vat = $data['vat_id'] ?? null;
 
         $nameCol = "regexp_replace(lower(btrim(coalesce(legal_name, ''))), '\\s+', ' ', 'g')";
         $regCol = "regexp_replace(lower(coalesce(registration_number, '')), '[^a-z0-9]', '', 'g')";
         $vatCol = "upper(regexp_replace(coalesce(vat_id, ''), '[^A-Za-z0-9]', '', 'g'))";
 
-        $query = Organization::query()
+        $existing = fn () => Organization::query()
             ->whereKeyNot($org->id)
-            ->whereNotNull('onboarding_completed_at')
-            ->whereRaw($nameCol.' = ?', [$legal])
-            ->whereRaw($regCol.' = ?', [$reg]);
+            ->whereNotNull('onboarding_completed_at');
 
-        if (VatNumber::countryHasVat($country)) {
-            // VAT-operating country: the canonical VAT must also match. A VAT is required for
-            // these countries, so a missing one simply cannot assert (or dodge) a duplicate.
-            if ($vat === null) {
-                return null;
+        if ($legal !== '' && $country !== null) {
+            if ($match = $existing()->whereRaw($nameCol.' = ?', [$legal])->where('country', $country)->first()) {
+                return ['organization' => $match, 'field' => 'legal_name', 'label' => 'company name'];
             }
-            $query->whereRaw($vatCol.' = ?', [$vat]);
-        } else {
-            // VAT-less country: match on country so a blank VAT cannot bypass the guard.
-            $query->where('country', $country);
         }
 
-        return $query->first();
+        if ($reg !== '') {
+            if ($match = $existing()->whereRaw($regCol.' = ?', [$reg])->first()) {
+                return ['organization' => $match, 'field' => 'registration_number', 'label' => 'registration number'];
+            }
+        }
+
+        if ($vat !== null) {
+            if ($match = $existing()->whereRaw($vatCol.' = ?', [$vat])->first()) {
+                return ['organization' => $match, 'field' => 'vat_id', 'label' => 'VAT number'];
+            }
+        }
+
+        return null;
     }
 
     /**
      * Record a blocked duplicate attempt. Below the threshold, return the user to the form
-     * with an error. Once attempts exceed the threshold, suspend the email account, alert
-     * support (admin-only reason), and send the user to the support page.
+     * with an error on whichever field triggered the match. Once attempts exceed the threshold,
+     * suspend the email account, alert support (admin-only reason), and send the user to the
+     * support page.
+     *
+     * @param  array{organization: Organization, field: string, label: string}  $duplicate
      */
-    private function handleDuplicate(Request $request, Organization $match)
+    private function handleDuplicate(Request $request, array $duplicate)
     {
+        ['organization' => $match, 'field' => $field, 'label' => $label] = $duplicate;
         $threshold = (int) config('dpp.onboarding_duplicate_max_attempts', 3);
 
-        $suspended = DB::transaction(function () use ($request, $match, $threshold): ?User {
+        $suspended = DB::transaction(function () use ($request, $match, $label, $threshold): ?User {
             /** @var User $user */
             $user = User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
             $user->duplicate_onboarding_attempts++;
 
             $reason = sprintf(
-                'Duplicate registration blocked %d time(s). Company name, registration number and '
-                .'VAT number all match existing organization "%s" (id %s).',
+                'Duplicate registration blocked %d time(s). Matched on %s against existing '
+                .'organization "%s" (id %s).',
                 $user->duplicate_onboarding_attempts,
+                $label,
                 $match->name,
                 $match->id,
             );
@@ -233,9 +241,12 @@ class OnboardingController extends Controller
             return redirect()->route('support.show');
         }
 
-        return back()->withInput()->withErrors([
-            'vat_id' => 'An organization with this company name, registration number and VAT '
-                .'number is already registered. If this is your company, please contact support.',
+        // duplicate_notice drives a dedicated, prominent explanation banner on the onboarding
+        // page (see resources/views/app/onboarding.blade.php) -- a generic "check the
+        // highlighted fields" message isn't enough context for what a duplicate match means or
+        // what to do about it.
+        return back()->withInput()->with('duplicate_notice', true)->withErrors([
+            $field => "An organization with this {$label} is already registered.",
         ]);
     }
 

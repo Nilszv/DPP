@@ -16,9 +16,10 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 VAT number (locked country prefix incl. Greece `EL` / Switzerland `CHE`, digit-only + length-
 capped entry, per-country format) and the contact phone (searchable dial-code dropdown). All
 profile fields required except address line 2; VAT required only where a country operates one.
-A **duplicate-registration guard** blocks completion when company name + registration number +
-VAT all match an existing org (VAT-less countries fall back to country + name + reg); repeated
-attempts (default 4th) suspend the **email account**, gate it to `/app/support` (contact form),
+A **duplicate-registration guard** runs three independent checks - (1) company name + country,
+(2) registration number alone, (3) VAT number alone - any single hit flags a possible duplicate,
+so the same company can't slip through by changing one field while keeping another consistent;
+repeated blocked attempts (default 4th) suspend the **email account**, gate it to `/app/support` (contact form),
 and alert `SUPPORT_EMAIL` with an admin-only reason; admins lift it from the org detail page.
 VAT is canonicalized + validated **server-side** (`App\Support\VatNumber`), so the guard is not
 browser-dependent. External review of this slice: **9.1/10** (P1/P2 fixed). See
@@ -93,7 +94,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ✅ **Company profile page** (`/app/organization`): shows the captured data + applicable VAT; owner/admin can edit. Shared `company-fields` partial keeps the form easy to adjust in one place.
 - ✅ **Country + VAT config** (`config/tax.php`, EU-27 + a few others): single source for the country dropdown and the tax rate applied later at billing time.
 - ✅ **Country-aware onboarding fields**: country first; VAT number shows a locked country prefix (Greece `EL`, Switzerland `CHE` handled) with digit-only, length-capped entry and per-country format validation; contact phone has a searchable dial-code dropdown. All fields required except address line 2; VAT required only for countries that operate a VAT number.
-- ✅ **Duplicate-registration guard**: onboarding blocks completion when company name + registration number + VAT number all match an existing org (VAT-less countries fall back to country + name + reg). Repeated attempts (default: 4th) suspend the **email account** (user-level `suspended_at`), gate it to `/app/support` (contact form: phone/email/company/message), and alert `SUPPORT_EMAIL` with an admin-only reason. Admin lifts the suspension from the org detail page. VAT is canonicalized + validated **server-side** (`App\Support\VatNumber`) so the guard is not browser-bypassable; a backfill migration canonicalizes any pre-existing `vat_id` values. External review: 9.1/10. See `PRE_LAUNCH_CHECKLIST.md` for the `dev@vdisain.lv` placeholders to swap before launch.
+- ✅ **Duplicate-registration guard**: onboarding blocks completion via three **independent** checks against already-completed organizations - any single hit flags a possible duplicate: (1) company name + country (case/whitespace-insensitive; a name is unique per country), (2) registration number alone (formatting-insensitive), (3) VAT number alone (canonical). The error surfaces on whichever field triggered the match. (2026-07-01: replaced an earlier version that required name + registration number + VAT to *all* match together, which let an exact-name duplicate through if the registration number or VAT differed.) Repeated blocked attempts (default: 4th) suspend the **email account** (user-level `suspended_at`), gate it to `/app/support` (contact form: phone/email/company/message), and alert `SUPPORT_EMAIL` with an admin-only reason (including which check matched). Admin lifts the suspension from the org detail page. VAT is canonicalized + validated **server-side** (`App\Support\VatNumber`) so entry is not browser-bypassable; a backfill migration canonicalizes any pre-existing `vat_id` values. External review: 9.1/10. See `PRE_LAUNCH_CHECKLIST.md` for the `dev@vdisain.lv` placeholders to swap before launch.
 
 ### DPP product layer
 - ✅ Generic template seeded (`TemplateSeeder`); product created behind the passport wizard

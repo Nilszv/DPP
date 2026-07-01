@@ -10,7 +10,6 @@ use Database\Seeders\LegalDocumentSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DuplicateRegistrationTest extends TestCase
@@ -23,62 +22,116 @@ class DuplicateRegistrationTest extends TestCase
         $this->seed(LegalDocumentSeeder::class);
     }
 
-    public function test_duplicate_of_all_three_fields_blocks_onboarding(): void
+    public function test_duplicate_name_and_country_blocks_onboarding(): void
     {
         $this->existingOrg();
         [$user, $org] = $this->makeUserOrg();
 
         $this->actingAs($user)
             ->post(route('onboarding.store'), $this->validPayload())
-            ->assertSessionHasErrors('vat_id');
+            ->assertSessionHasErrors('legal_name')
+            ->assertSessionHas('duplicate_notice', true);
 
         $this->assertFalse($org->fresh()->isOnboarded());
         $this->assertSame(1, $user->fresh()->duplicate_onboarding_attempts);
         $this->assertFalse($user->fresh()->isSuspended());
     }
 
-    public function test_partial_match_does_not_block(): void
+    public function test_duplicate_notice_explains_the_block_and_offers_login(): void
     {
-        // Same company name + registration number, but a DIFFERENT VAT number.
-        $this->existingOrg(['vat_id' => 'LV99999999999']);
+        $this->existingOrg();
+        [$user] = $this->makeUserOrg();
+
+        $this->actingAs($user)->post(route('onboarding.store'), $this->validPayload());
+
+        $this->actingAs($user)->get(route('onboarding.show'))
+            ->assertSee('We found an existing organization matching these details')
+            ->assertSee(route('login'), false)
+            ->assertSee(route('support.show'), false);
+    }
+
+    public function test_same_name_and_country_blocks_even_with_different_registration_and_vat(): void
+    {
+        // Same company name + country, but DIFFERENT registration number and VAT number.
+        // Registration/VAT are no longer part of the match -- a company name is unique per
+        // country regardless of a typo'd or reformatted registration/VAT number.
+        $this->existingOrg(['registration_number' => '99999999999', 'vat_id' => 'LV99999999999']);
         [$user, $org] = $this->makeUserOrg();
 
         $this->actingAs($user)
             ->post(route('onboarding.store'), $this->validPayload())
+            ->assertSessionHasErrors('legal_name');
+
+        $this->assertFalse($org->fresh()->isOnboarded());
+    }
+
+    public function test_same_name_in_a_different_country_does_not_block(): void
+    {
+        // Same company name, but a DIFFERENT country, registration number and VAT -- two
+        // unrelated companies with a common name in different countries must both be allowed
+        // to register (none of the three independent checks should fire here).
+        $this->existingOrg(['country' => 'EE', 'registration_number' => '55555555555', 'vat_id' => 'EE555555555']);
+        [$user, $org] = $this->makeUserOrg();
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload(['country' => 'LV']))
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('dashboard'));
 
         $this->assertTrue($org->fresh()->isOnboarded());
     }
 
-    #[DataProvider('vatFormattingVariants')]
-    public function test_formatting_variant_cannot_bypass_the_duplicate_guard(string $vat): void
+    public function test_registration_number_match_alone_blocks_despite_different_name_and_country(): void
     {
-        $this->existingOrg(); // stored canonical LV40003011283
+        // Different company name and country, but the SAME registration number -- the
+        // registration-number check is independent and must fire on its own.
+        $this->existingOrg(['legal_name' => 'Beta Corp', 'country' => 'DE', 'registration_number' => '77777777777', 'vat_id' => 'DE77777777777']);
         [$user, $org] = $this->makeUserOrg();
 
-        // A hand-crafted POST with a differently formatted VAT must still be caught, because
-        // the server canonicalizes before comparing.
         $this->actingAs($user)
-            ->post(route('onboarding.store'), $this->validPayload(['vat_id' => $vat]))
+            ->post(route('onboarding.store'), $this->validPayload([
+                'legal_name' => 'Totally Different Ltd',
+                'registration_number' => '77777777777',
+            ]))
+            ->assertSessionHasErrors('registration_number');
+
+        $this->assertFalse($org->fresh()->isOnboarded());
+    }
+
+    public function test_vat_number_match_alone_blocks_despite_different_name_and_country(): void
+    {
+        // Different company name, country and registration number, but the SAME VAT number --
+        // the VAT check is independent and must fire on its own.
+        $this->existingOrg(['legal_name' => 'Gamma Inc', 'country' => 'DE', 'registration_number' => '88888888888', 'vat_id' => 'LV40009999999']);
+        [$user, $org] = $this->makeUserOrg();
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload([
+                'legal_name' => 'Totally Different Ltd',
+                'registration_number' => '11122233344',
+                'vat_id' => 'LV40009999999',
+            ]))
             ->assertSessionHasErrors('vat_id');
 
         $this->assertFalse($org->fresh()->isOnboarded());
     }
 
-    public static function vatFormattingVariants(): array
+    public function test_name_matching_is_case_and_whitespace_insensitive(): void
     {
-        return [
-            'spaces + lowercase' => ['lv 4000 3011 283'],
-            'missing prefix' => ['40003011283'],
-            'punctuation' => ['LV-4000.3011.283'],
-        ];
+        $this->existingOrg();
+        [$user, $org] = $this->makeUserOrg();
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload(['legal_name' => '  acme   LTD  ']))
+            ->assertSessionHasErrors('legal_name');
+
+        $this->assertFalse($org->fresh()->isOnboarded());
     }
 
-    public function test_vatless_country_duplicate_is_caught_on_name_and_registration(): void
+    public function test_vatless_country_duplicate_is_caught_on_name_and_country(): void
     {
-        // Existing US org (no VAT). US onboarding allows a blank VAT, so the guard must fall
-        // back to country + company name + registration number.
+        // Existing US org (no VAT). US onboarding allows a blank VAT, so the guard must still
+        // catch the duplicate on company name + country alone.
         $this->existingOrg(['country' => 'US', 'vat_id' => null]);
         [$user, $org] = $this->makeUserOrg();
 
@@ -87,7 +140,7 @@ class DuplicateRegistrationTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('onboarding.store'), $payload)
-            ->assertSessionHasErrors('vat_id'); // duplicate error is surfaced on the VAT field
+            ->assertSessionHasErrors('legal_name');
 
         $this->assertFalse($org->fresh()->isOnboarded());
     }
@@ -124,7 +177,7 @@ class DuplicateRegistrationTest extends TestCase
         for ($i = 0; $i < 3; $i++) {
             $this->actingAs($user)
                 ->post(route('onboarding.store'), $this->validPayload())
-                ->assertSessionHasErrors('vat_id');
+                ->assertSessionHasErrors('legal_name');
             $this->assertFalse($user->fresh()->isSuspended());
         }
         Mail::assertNothingSent();

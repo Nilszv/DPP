@@ -14,6 +14,7 @@
     <p>
         {{ $matchedOrganization->name }}<br>
         Company name: {{ $matchedOrganization->legal_name }}<br>
+        Country: {{ $matchedOrganization->country }}<br>
         Registration number: {{ $matchedOrganization->registration_number }}<br>
         VAT number: {{ $matchedOrganization->vat_id }}<br>
         Org id: {{ $matchedOrganization->id }}
