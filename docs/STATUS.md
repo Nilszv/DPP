@@ -9,10 +9,33 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main` (pushed, commit
-`7271d6c` + the follow-ups here). 93 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 114 tests pass.
 
-**Just landed (this session): country-aware onboarding.** Country picked first drives the
+**Just landed (this session): tiered public views (repairer/recycler/authority).** A
+published passport now builds a pre-filtered snapshot for all 5 audiences (`config('dpp.audiences')`,
+was hardcoded to `['consumer', 'full']`), each reachable via a durable, revocable per-audience
+link (`/p/{public_id}/{audience}/{token}`, token stored in the new `passport_access_tokens`
+table -- permanent and survives `APP_KEY` rotation, unlike a Laravel signed URL, since these
+may be printed in physical service manuals for years). Issued automatically at publish time;
+org users see/copy/regenerate them from the passport's show page (editor+ can regenerate,
+matching the existing publish gate). A backfill migration retrofitted tokens + snapshots for
+passports published before this existed.
+
+**Critical bug found + fixed during that work:** `PublishedSnapshot` has no single-column
+primary key (its real key is composite: `passport_id`+`audience`+`locale`), and Eloquent's
+default `save()`/`fresh()` build their `WHERE` from a single `$primaryKey` -- with it left
+`null`, that silently produced an **unconstrained `UPDATE` that overwrote every row in the
+whole table** the moment anything called `save()` on an already-existing row. This was dormant
+before today because nothing had ever rebuilt an existing passport's snapshots; the new
+backfill migration was the first thing to do that, and it corrupted all 20 existing
+`published_snapshots` rows (every published passport's public page was serving unfiltered
+`'full'` data) within seconds of running. Fixed by overriding `setKeysForSaveQuery()` /
+`setKeysForSelectQuery()` on the model to constrain by the actual composite key; live data
+was rebuilt and verified row-by-row after the fix. A regression test
+(`PublishedSnapshotModelTest`) asserts saving one row never touches another. No other model
+in the codebase uses `$primaryKey = null`.
+
+**Previously landed: country-aware onboarding.** Country picked first drives the
 VAT number (locked country prefix incl. Greece `EL` / Switzerland `CHE`, digit-only + length-
 capped entry, per-country format) and the contact phone (searchable dial-code dropdown). All
 profile fields required except address line 2; VAT required only where a country operates one.
@@ -35,11 +58,11 @@ abstraction (manual driver, DB-driven plans, downgrade guard + Contact sales) ·
 plans, legal editor, user unsuspend) · CI.
 
 **Best next steps (pick one):**
-1. **Tiered public views** (repairer/recycler/authority) - access-map + snapshot plumbing
-   already exists; only `consumer` renders.
-2. **Stripe billing** - needs a Stripe account + the lapse-policy decision first.
-3. **Post-publish versioning** (corrections to a published passport).
-4. **Real per-category templates** (owner to provide field examples).
+1. **Stripe billing** - needs a Stripe account + the lapse-policy decision first.
+2. **Post-publish versioning** (corrections to a published passport) - currently a hard wall:
+   `PassportController::edit`/`update` flatly refuse any edit once published, with no
+   correction path at all.
+3. **Real per-category templates** (owner to provide field examples).
 
 **Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
 the legal role (host vs. ESPR service provider), first product category, and final domains.
@@ -108,8 +131,9 @@ scannable QR resolve to a public passport page. **Done.**
 
 ### Public viewer / resolver
 - ✅ Resolver route handling both URL shapes + content negotiation (HTML vs JSON-LD)
-- ✅ `published_snapshots` built on publish (`SnapshotBuilder`, consumer + full audiences); resolver reads ONE snapshot row
+- ✅ `published_snapshots` built on publish (`SnapshotBuilder`, all 5 audiences: consumer, repairer, recycler, authority, full); resolver reads ONE snapshot row
 - ✅ Consumer view (plain HTML, no auth); drafts/unknown ids return 404
+- ✅ **Tiered access links** (repairer/recycler/authority): `/p/{public_id}/{audience}/{token}`, a durable per-audience token (`passport_access_tokens`, `App\Models\PassportAccessToken`) issued at publish time. The audience segment is never trusted alone - a valid token only works under its own audience's URL slot. Org users see/copy/regenerate each tier's link from the passport show page (editor+ can regenerate, same gate as publish). Backfilled for passports published before this existed. Verified by tests.
 - ✅ Scan logging into partitioned `scan_events` (`ScanLogger`, HMAC-hashed IP)
 - ✅ Route-model binding is tenant-safe: `BelongsToOrganization::resolveRouteBinding` constrains to a **membership-validated** org (shared `User::currentOrganizationIdIfMember`) and binds nothing (404) when no valid org - independent of middleware order, safe against a revoked membership with a stale current_organization_id. Covered by tests.
 
@@ -136,7 +160,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ⏸️ Published-DPP lifecycle tools (archive, legal holds, migrations)
 
 ## Slice 3 - Compliance depth  ⏸️
-- ⏸️ Tiered access views (repairer / recycler / authority / customs) - mechanism stubbed in Slice 1
+- ✅ Tiered access views (repairer / recycler / authority) - see Public viewer / resolver above. Customs specifically is not modeled as its own audience yet.
 - ⏸️ EU Registry push + commodity code
 - ⏸️ Full versioning UI + audit trail surface
 - ⏸️ Persistence/backup tier (cold archive export to object storage, 3rd-party backup copy)

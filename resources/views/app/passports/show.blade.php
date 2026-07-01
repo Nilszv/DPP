@@ -24,6 +24,38 @@
         <p class="muted">Scannable, smartphone-readable, no app needed. SVG scales to any print size.</p>
         <img src="{{ route('passports.qr', $passport) }}" alt="QR code" width="220" height="220">
         <p><a href="{{ route('passports.qr', $passport) }}" download="passport-qr.svg">Download QR (SVG)</a></p>
+
+        <h2>Tiered access links</h2>
+        <p class="muted">Share these with repairers, recyclers, or authorities. Each link shows only the fields configured for that audience.</p>
+        @foreach ($tierLinks as $tier)
+            <div class="form-row">
+                <label>{{ ucfirst($tier['audience']) }}</label>
+                <div class="input-group">
+                    <input type="text" readonly value="{{ $tier['url'] }}" data-copy-source>
+                    <button type="button" data-copy-trigger>Copy</button>
+                </div>
+                @if ($canRegenerateTiers)
+                    <form method="POST" action="{{ route('passports.tiers.regenerate', [$passport, $tier['audience']]) }}"
+                          onsubmit="return confirm('Regenerate this link? The old link will stop working immediately.')">
+                        @csrf
+                        <button type="submit" class="button-secondary">Regenerate</button>
+                    </form>
+                @endif
+            </div>
+        @endforeach
+
+        <script>
+            document.querySelectorAll('[data-copy-trigger]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var input = btn.closest('.input-group').querySelector('[data-copy-source]');
+                    navigator.clipboard.writeText(input.value).then(function () {
+                        var original = btn.textContent;
+                        btn.textContent = 'Copied!';
+                        setTimeout(function () { btn.textContent = original; }, 1500);
+                    });
+                });
+            });
+        </script>
     @else
         <h2>Actions</h2>
         <p>

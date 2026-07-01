@@ -10,6 +10,9 @@
 <body class="page page-passport">
     <main class="passport">
         <p class="muted">Digital Product Passport</p>
+        @if (($p['audience'] ?? 'consumer') !== 'consumer')
+            <p class="muted">Viewing: {{ ucfirst($p['audience']) }} information</p>
+        @endif
         <h1>{{ $p['title'] ?? 'Product' }}</h1>
 
         @if (empty($p['fields']))

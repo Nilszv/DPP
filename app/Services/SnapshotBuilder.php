@@ -11,19 +11,15 @@ use App\Support\CanonicalJson;
 /**
  * Builds the read-side delivery rows (published_snapshots) for a passport version.
  * Each row is a pre-filtered, per-audience view the resolver serves with a single key
- * lookup -- never a live join. Slice 1 renders the consumer audience (plus a full audience
- * for authority/debug); the others are wired for the later tiered views.
+ * lookup -- never a live join. The template access_map controls field visibility per audience.
  */
 class SnapshotBuilder
 {
-    /** Audiences built now. The template access_map controls field visibility per audience. */
-    private const AUDIENCES = ['consumer', 'full'];
-
     public function build(Passport $passport, PassportVersion $version, Template $template): void
     {
         $locale = $passport->default_locale;
 
-        foreach (self::AUDIENCES as $audience) {
+        foreach (config('dpp.audiences') as $audience) {
             $rendered = $this->render($passport, $version, $template, $audience, $locale);
 
             PublishedSnapshot::updateOrCreate(

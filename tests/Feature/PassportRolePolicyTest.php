@@ -7,6 +7,7 @@ use App\Models\Passport;
 use App\Models\Product;
 use App\Models\Template;
 use App\Models\User;
+use App\Services\PassportPublisher;
 use Database\Seeders\TemplateSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -62,6 +63,37 @@ class PassportRolePolicyTest extends TestCase
             ->assertRedirect(route('passports.show', $passport));
 
         $this->assertSame('published', $passport->fresh()->status);
+    }
+
+    public function test_viewer_cannot_regenerate_a_tier_link(): void
+    {
+        $viewer = $this->userWithRole('viewer');
+        $passport = $this->published();
+
+        $this->actingAs($viewer)
+            ->post(route('passports.tiers.regenerate', [$passport, 'repairer']))
+            ->assertForbidden();
+    }
+
+    public function test_editor_can_regenerate_a_tier_link(): void
+    {
+        $editor = $this->userWithRole('editor');
+        $passport = $this->published();
+        $oldToken = $passport->accessTokens()->where('audience', 'repairer')->first()->token;
+
+        $this->actingAs($editor)
+            ->post(route('passports.tiers.regenerate', [$passport, 'repairer']))
+            ->assertRedirect(route('passports.show', $passport));
+
+        $this->assertNotSame($oldToken, $passport->accessTokens()->where('audience', 'repairer')->first()->token);
+    }
+
+    private function published(): Passport
+    {
+        $passport = $this->draft();
+        app(PassportPublisher::class)->publish($passport);
+
+        return $passport->refresh();
     }
 
     private function template(): Template

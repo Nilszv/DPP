@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\PublishException;
 use App\Models\Passport;
+use App\Models\PassportAccessToken;
 use App\Support\CanonicalJson;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -73,7 +74,12 @@ class PassportPublisher
                 'retention_until' => $publishedAt->copy()->addYears(self::RETENTION_YEARS)->toDateString(),
             ]);
 
-            $this->snapshots->build($passport->refresh(), $version, $passport->product->template);
+            $passport->refresh();
+            $this->snapshots->build($passport, $version, $passport->product->template);
+
+            foreach (['repairer', 'recycler', 'authority'] as $audience) {
+                PassportAccessToken::issue($passport, $audience);
+            }
 
             return $passport;
         });

@@ -25,7 +25,8 @@ return [
      | Errors are shown for attempts 1..N; exceeding N (the N+1th) suspends the account. */
     'onboarding_duplicate_max_attempts' => (int) env('ONBOARDING_DUPLICATE_MAX_ATTEMPTS', 3),
 
-    /* Audiences the tiered resolver/snapshots support. Only 'consumer' renders in Slice 1. */
+    /* Audiences the tiered resolver/snapshots support. 'full' is internal/non-distributed --
+     | only consumer/repairer/recycler/authority are reachable via a public URL. */
     'audiences' => ['consumer', 'repairer', 'recycler', 'authority', 'full'],
 
     /*

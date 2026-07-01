@@ -49,6 +49,11 @@ class Passport extends Model
         return $this->hasMany(PublishedSnapshot::class);
     }
 
+    public function accessTokens(): HasMany
+    {
+        return $this->hasMany(PassportAccessToken::class);
+    }
+
     public function isPublished(): bool
     {
         return $this->status === 'published';
@@ -73,5 +78,13 @@ class Passport extends Model
         }
 
         return "{$base}/p/{$this->public_id}";
+    }
+
+    /** Sibling to resolverUrl() -- a tiered (repairer/recycler/authority) access link. */
+    public function tierUrl(string $audience, string $token): string
+    {
+        $base = rtrim(config('dpp.passport_base_url'), '/');
+
+        return "{$base}/p/{$this->public_id}/{$audience}/{$token}";
     }
 }

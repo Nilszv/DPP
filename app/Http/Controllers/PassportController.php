@@ -123,9 +123,18 @@ class PassportController extends Controller
     public function show(Passport $passport)
     {
         $this->authorize('view', $passport);
-        $passport->load('product.template', 'currentVersion');
+        $passport->load('product.template', 'currentVersion', 'accessTokens');
 
-        return view('app.passports.show', ['passport' => $passport]);
+        $tierLinks = $passport->accessTokens->map(fn ($token) => [
+            'audience' => $token->audience,
+            'url' => $passport->tierUrl($token->audience, $token->token),
+        ]);
+
+        return view('app.passports.show', [
+            'passport' => $passport,
+            'tierLinks' => $tierLinks,
+            'canRegenerateTiers' => auth()->user()->can('publish', $passport),
+        ]);
     }
 
     public function publish(Passport $passport, PassportPublisher $publisher)
@@ -139,6 +148,17 @@ class PassportController extends Controller
 
         return redirect()->route('passports.show', $passport)
             ->with('status', 'Published. Your passport is now live and scannable.');
+    }
+
+    public function regenerateTier(Passport $passport, string $audience)
+    {
+        $this->authorize('publish', $passport);
+        abort_unless($passport->isPublished(), 404);
+
+        $passport->accessTokens()->where('audience', $audience)->firstOrFail()->regenerate();
+
+        return redirect()->route('passports.show', $passport)
+            ->with('status', ucfirst($audience).' link regenerated. The old link no longer works.');
     }
 
     public function qr(Passport $passport, QrService $qr)

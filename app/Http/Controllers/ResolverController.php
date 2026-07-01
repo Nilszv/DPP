@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Passport;
+use App\Models\PassportAccessToken;
 use App\Models\PublishedSnapshot;
 use App\Services\ScanLogger;
 use Illuminate\Http\Request;
@@ -21,7 +22,7 @@ class ResolverController extends Controller
     /** Fallback identifier: /p/{public_id} */
     public function showByPublicId(Request $request, string $publicId): Response
     {
-        return $this->render($request, Passport::where('public_id', $publicId)->first());
+        return $this->render($request, Passport::where('public_id', $publicId)->first(), 'consumer');
     }
 
     /** GS1 Digital Link: /01/{gtin}/21/{serial} (serial optional). */
@@ -32,10 +33,27 @@ class ResolverController extends Controller
             $query->where('serial', $serial);
         }
 
-        return $this->render($request, $query->first());
+        return $this->render($request, $query->first(), 'consumer');
     }
 
-    private function render(Request $request, ?Passport $passport): Response
+    /** Tiered access link: /p/{public_id}/{audience}/{token} (repairer/recycler/authority). */
+    public function showByTier(Request $request, string $publicId, string $audience, string $token): Response
+    {
+        $passport = Passport::where('public_id', $publicId)->first();
+        abort_if(! $passport, 404);
+
+        // The audience segment is never trusted by itself: a valid token for one audience
+        // must not grant access under a different audience's URL slot.
+        $valid = PassportAccessToken::where('passport_id', $passport->id)
+            ->where('audience', $audience)
+            ->where('token', $token)
+            ->exists();
+        abort_if(! $valid, 404);
+
+        return $this->render($request, $passport, $audience);
+    }
+
+    private function render(Request $request, ?Passport $passport, string $audience): Response
     {
         // A published passport must never silently 404 once live, but drafts / unknown ids
         // are genuinely not found to the public.
@@ -44,7 +62,7 @@ class ResolverController extends Controller
         $locale = $passport->default_locale;
 
         $snapshot = PublishedSnapshot::where('passport_id', $passport->id)
-            ->where('audience', 'consumer')
+            ->where('audience', $audience)
             ->where('locale', $locale)
             ->first();
 

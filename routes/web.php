@@ -107,6 +107,8 @@ Route::middleware(['auth', 'org.context', 'org.active', 'not.suspended', 'onboar
     Route::put('/app/passports/{passport}', [PassportController::class, 'update'])->name('passports.update');
     Route::post('/app/passports/{passport}/publish', [PassportController::class, 'publish'])->name('passports.publish');
     Route::get('/app/passports/{passport}/qr', [PassportController::class, 'qr'])->name('passports.qr');
+    Route::post('/app/passports/{passport}/tiers/{audience}/regenerate', [PassportController::class, 'regenerateTier'])
+        ->whereIn('audience', ['repairer', 'recycler', 'authority'])->name('passports.tiers.regenerate');
 
     // Plan & billing (manual mode until Stripe is configured).
     Route::get('/app/billing', [BillingController::class, 'index'])->name('billing.index');
@@ -152,3 +154,6 @@ Route::get('/01/{gtin}/21/{serial}', [ResolverController::class, 'showByGs1'])->
 Route::get('/01/{gtin}', [ResolverController::class, 'showByGs1'])->name('passport.gs1.gtin');
 // Fallback opaque id: /p/{public_id}.
 Route::get('/p/{publicId}', [ResolverController::class, 'showByPublicId'])->name('passport.public');
+// Tiered access link: /p/{public_id}/{audience}/{token} (repairer/recycler/authority).
+Route::get('/p/{publicId}/{audience}/{token}', [ResolverController::class, 'showByTier'])
+    ->whereIn('audience', ['repairer', 'recycler', 'authority'])->name('passport.tier');
