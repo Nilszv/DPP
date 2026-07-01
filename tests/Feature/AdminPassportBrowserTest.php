@@ -37,7 +37,7 @@ class AdminPassportBrowserTest extends TestCase
         $this->makePassport($a, 'AlphaProduct');
         $this->makePassport($b, 'BetaProduct');
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->get(route('admin.passports.index'))
             ->assertOk()
             ->assertSee('AlphaProduct')
@@ -51,7 +51,7 @@ class AdminPassportBrowserTest extends TestCase
         $this->makePassport($a, 'AlphaProduct');
         $this->makePassport($b, 'BetaProduct');
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->get(route('admin.passports.index', ['org' => $a->id]))
             ->assertSee('AlphaProduct')
             ->assertDontSee('BetaProduct');
@@ -65,7 +65,7 @@ class AdminPassportBrowserTest extends TestCase
 
         $needle = substr($alpha->public_id, 0, 8);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->get(route('admin.passports.index', ['q' => $needle]))
             ->assertSee('AlphaProduct')
             ->assertDontSee('BetaProduct');
@@ -78,27 +78,14 @@ class AdminPassportBrowserTest extends TestCase
             $this->makePassport($org, "P{$i}");
         }
 
-        $admin = $this->admin();
+        $this->actingAsAdmin();
 
-        $this->actingAs($admin)
-            ->get(route('admin.passports.index'))
+        $this->get(route('admin.passports.index'))
             ->assertSee('21 total')
             ->assertSee('Showing 1-20');
 
-        $this->actingAs($admin)
-            ->get(route('admin.passports.index', ['page' => 2]))
+        $this->get(route('admin.passports.index', ['page' => 2]))
             ->assertSee('Showing 21-21');
-    }
-
-    private function admin(): User
-    {
-        $user = User::create([
-            'name' => 'Admin', 'email' => 'admin.'.Str::lower(Str::random(5)).'@example.com',
-            'email_verified_at' => now(),
-        ]);
-        $user->forceFill(['is_admin' => true])->save();
-
-        return $user;
     }
 
     private function org(): Organization

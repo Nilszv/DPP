@@ -6,7 +6,6 @@ use App\Models\LegalDocument;
 use App\Models\User;
 use Database\Seeders\LegalDocumentSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AdminLegalTest extends TestCase
@@ -31,7 +30,7 @@ class AdminLegalTest extends TestCase
         $doc = LegalDocument::where('key', 'registration_policy')->first();
         $this->assertSame(1, $doc->version);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->put(route('admin.legal.update', $doc), [
                 'title' => $doc->title,
                 'body' => 'Brand new policy text.',
@@ -47,7 +46,7 @@ class AdminLegalTest extends TestCase
     {
         $doc = LegalDocument::where('key', 'registration_policy')->first();
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->put(route('admin.legal.update', $doc), [
                 'title' => 'Renamed title',
                 'body' => $doc->body,
@@ -57,16 +56,5 @@ class AdminLegalTest extends TestCase
 
         $this->assertSame(1, $doc->fresh()->version);
         $this->assertSame('Renamed title', $doc->fresh()->title);
-    }
-
-    private function admin(): User
-    {
-        $user = User::create([
-            'name' => 'Admin', 'email' => 'admin.'.Str::lower(Str::random(5)).'@example.com',
-            'email_verified_at' => now(),
-        ]);
-        $user->forceFill(['is_admin' => true])->save();
-
-        return $user;
     }
 }

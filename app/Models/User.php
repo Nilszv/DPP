@@ -35,6 +35,12 @@ class User extends Authenticatable
         return (bool) $this->is_admin;
     }
 
+    /** Whether this admin has completed TOTP setup (required before any admin access). */
+    public function hasTwoFactorConfirmed(): bool
+    {
+        return $this->two_factor_confirmed_at !== null;
+    }
+
     /**
      * Whether this email account is suspended (e.g. repeated duplicate-registration abuse).
      * A suspended user can still log in but is gated to the support page until an admin
@@ -105,6 +111,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -119,6 +127,9 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_admin' => 'boolean',
             'suspended_at' => 'datetime',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'array',
+            'two_factor_confirmed_at' => 'datetime',
         ];
     }
 }

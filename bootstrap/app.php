@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAdminTwoFactorVerified;
 use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\EnsureOrganizationActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'onboarded' => EnsureOnboarded::class,
             'not.suspended' => EnsureUserNotSuspended::class,
             'admin' => EnsureUserIsAdmin::class,
+            'admin.2fa' => EnsureAdminTwoFactorVerified::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -249,12 +249,7 @@ class DuplicateRegistrationTest extends TestCase
             'suspended_at' => now(), 'suspension_reason' => 'dup', 'duplicate_onboarding_attempts' => 5,
         ])->save();
 
-        $admin = User::create([
-            'name' => 'Admin', 'email' => Str::lower(Str::random(6)).'@admin.test', 'email_verified_at' => now(),
-        ]);
-        $admin->forceFill(['is_admin' => true])->save();
-
-        $this->actingAs($admin)
+        $this->actingAsAdmin()
             ->post(route('admin.users.unsuspend', $user))
             ->assertRedirect();
 

@@ -9,9 +9,29 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 114 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 126 tests pass.
 
-**Just landed (this session): tiered public views (repairer/recycler/authority).** A
+**Just landed (this session): mandatory TOTP two-factor auth for admin users.** Every
+`is_admin` account must complete an authenticator-app (Google Authenticator/Authy-style) code
+before reaching any `/admin/*` page -- immediately and mandatorily on first admin login, no
+skip. Layered on top of the existing passwordless flow: `PasswordlessController::verify()`
+holds off `Auth::login()` for admins and routes them to `/login/2fa/setup` (first time, QR +
+manual secret + 10 bcrypt-hashed one-time recovery codes shown once) or `/login/2fa/verify`
+(already set up) before completing login. A new **session-level** middleware
+(`EnsureAdminTwoFactorVerified`, alias `admin.2fa`) closes a real gap: Laravel's remember-me
+cookie can silently re-authenticate a returning admin on a brand-new session without ever
+going through the login controller again, so the gate checks `session('2fa.passed')` on
+every `/admin/*` request regardless of how the session became authenticated -- a stale/
+remembered session is redirected to re-verify (not logged out) rather than silently let
+through. Lockout after 5 failed codes (15 min, on top of the route throttle). Self-service
+management at `/admin/security` (regenerate recovery codes, reset + redo setup with a step-up
+code confirmation). Operator escape hatch: `php artisan admin:reset-2fa {email}`. TOTP via
+`pragmarx/google2fa`; QR rendered by the existing `App\Services\QrService` (already used for
+passport QR codes) -- no new QR dependency. Verified end-to-end against the live server with
+a real HTTP flow (not just the test suite). The one pre-existing admin account now gets
+prompted for mandatory setup on its next `/admin/*` visit, as intended -- no grace period.
+
+**Previously landed: tiered public views (repairer/recycler/authority).** A
 published passport now builds a pre-filtered snapshot for all 5 audiences (`config('dpp.audiences')`,
 was hardcoded to `['consumer', 'full']`), each reachable via a durable, revocable per-audience
 link (`/p/{public_id}/{audience}/{token}`, token stored in the new `passport_access_tokens`
@@ -100,6 +120,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ✅ Organization roles enforced via `PassportPolicy` (Owner/Admin/Editor/Viewer): editors+ create/edit/publish, managers (owner/admin) delete + change plan, viewers read-only. `User::roleInCurrentOrg()`. Verified by tests.
 - ✅ **Team & member management** (`/app/team`): invite teammates by email (signed token, expiring), accept flow (only the invited email, joins + switches into the org), change role, remove member (last-owner protected), revoke invitation. **Per-plan seat limits** (free 1 / medium 3 / commercial unlimited; admin per-org `team_quota_override`) enforced server-side. Seat checks, last-owner checks, and accepts are **concurrency-safe** (per-org advisory lock, classid 2). Seat counts ignore expired invitations; a daily `invitations:prune` command cleans them up; plan seats backfilled by migration. **Org switcher** in the nav for users in multiple orgs. Verified by tests.
 - ✅ Plan + quota enforcement server-side (Free=1 published, Medium=5, Commercial=custom) - enforced on publish in `PassportPublisher` (concurrency-safe per-org advisory lock); see DPP product layer below
+- ✅ **Mandatory admin 2FA** (TOTP via `pragmarx/google2fa`): every `is_admin` user must complete an authenticator-app code before reaching `/admin/*`, set up immediately on first admin login (no skip, no grace period). Layered into the passwordless flow (`PasswordlessController::verify()` holds off `Auth::login()` for admins, routes to `/login/2fa/setup` or `/login/2fa/verify`). `EnsureAdminTwoFactorVerified` (`admin.2fa` middleware) enforces this **per session** (`session('2fa.passed')`), not just at login, so a remember-me-revived or otherwise stale admin session is redirected to re-verify rather than silently let through - closes a real gap where Laravel's own remember-cookie auth would otherwise bypass 2FA entirely. 10 individually bcrypt-hashed single-use recovery codes shown once at setup (and again on regenerate); 5-failed-attempt lockout (15 min) on top of the route throttle. Self-service at `/admin/security` (regenerate recovery codes, reset + redo setup with step-up confirmation). Operator escape hatch: `php artisan admin:reset-2fa {email}`. QR rendered via the existing `App\Services\QrService`. Verified by tests + a live end-to-end HTTP smoke test against the production server.
 
 ### Code review remediation (2026-06-30, external review)
 - ✅ Account+org+membership creation wrapped in a DB transaction (no partial state); concurrent first-login unique-email race handled

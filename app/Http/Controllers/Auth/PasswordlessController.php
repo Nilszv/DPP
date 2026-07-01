@@ -102,10 +102,25 @@ class PasswordlessController extends Controller
 
         $user = $this->findOrCreateUser($email);
 
+        if ($user->isAdmin()) {
+            // Admin accounts require TOTP two-factor -- do NOT Auth::login() yet. Regenerate
+            // the session now (fixation-safe, right after the primary factor succeeds), stash
+            // the pending user + remember choice, and branch to setup (first time) or verify.
+            $request->session()->regenerate();
+            $request->session()->forget('login.email');
+            $request->session()->put('2fa.pending_user_id', $user->id);
+            $request->session()->put('2fa.remember', $request->boolean('remember'));
+
+            return $user->hasTwoFactorConfirmed()
+                ? redirect()->route('2fa.verify')
+                : redirect()->route('2fa.setup');
+        }
+
         // Persistent "remember me" is opt-in, not forced.
         Auth::login($user, remember: $request->boolean('remember'));
         $request->session()->regenerate();
         $request->session()->forget('login.email');
+        $request->session()->put('2fa.passed', true);
 
         return redirect()->intended(route('dashboard'));
     }

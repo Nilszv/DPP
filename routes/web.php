@@ -4,7 +4,9 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminLegalController;
 use App\Http\Controllers\Admin\AdminPassportController;
 use App\Http\Controllers\Admin\AdminPlanController;
+use App\Http\Controllers\Admin\AdminTwoFactorController;
 use App\Http\Controllers\Auth\PasswordlessController;
+use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CurrentOrganizationController;
@@ -56,6 +58,25 @@ Route::middleware('guest')->group(function () {
 
 // Logout only needs auth (a suspended-org user must still be able to log out).
 Route::post('/logout', [PasswordlessController::class, 'logout'])->middleware('auth')->name('logout');
+
+// ---- Admin TOTP two-factor: pending-login setup/verify. Reachable mid-login for an admin
+// (after the primary email code, before Auth::login()) -- neither pure 'guest' nor 'auth' fits,
+// so gating is done inside the controller via session('2fa.pending_user_id'). ----
+Route::get('/login/2fa/setup', [TwoFactorController::class, 'showSetup'])->name('2fa.setup');
+Route::post('/login/2fa/setup', [TwoFactorController::class, 'confirmSetup'])
+    ->middleware('throttle:10,1')->name('2fa.setup.confirm');
+
+Route::get('/login/2fa/verify', [TwoFactorController::class, 'showVerify'])->name('2fa.verify');
+Route::post('/login/2fa/verify', [TwoFactorController::class, 'verify'])
+    ->middleware('throttle:10,1')->name('2fa.verify.confirm');
+
+// A remember-me-revived (or otherwise stale) admin session that never passed 2FA this session.
+Route::middleware('auth')->group(function () {
+    Route::get('/2fa/reverify', [TwoFactorController::class, 'showVerify'])->name('2fa.reverify');
+    Route::post('/2fa/reverify', [TwoFactorController::class, 'verify'])
+        ->middleware('throttle:10,1')->name('2fa.reverify.confirm');
+    Route::get('/2fa/recovery-codes', [TwoFactorController::class, 'showRecoveryCodes'])->name('2fa.recovery-codes');
+});
 
 // Accept a team invitation: auth-only (a new invitee can accept before onboarding their own org).
 Route::middleware('auth')->group(function () {
@@ -120,7 +141,7 @@ Route::middleware(['auth', 'org.context', 'org.active', 'not.suspended', 'onboar
 });
 
 // ---- Platform back-office (super-admin only) ----
-Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'admin', 'admin.2fa'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminController::class, 'overview'])->name('overview');
 
     Route::get('/organizations', [AdminController::class, 'organizations'])->name('organizations');
@@ -146,6 +167,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/plans', [AdminPlanController::class, 'store'])->name('plans.store');
     Route::get('/plans/{plan}/edit', [AdminPlanController::class, 'edit'])->name('plans.edit');
     Route::put('/plans/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
+
+    Route::get('/security', [AdminTwoFactorController::class, 'show'])->name('security.show');
+    Route::post('/security/recovery-codes', [AdminTwoFactorController::class, 'regenerateRecoveryCodes'])
+        ->name('security.recovery-codes.regenerate');
+    Route::post('/security/reset', [AdminTwoFactorController::class, 'reset'])->name('security.reset');
 });
 
 // ---- Public passport resolver (QR scan target, no auth) ----

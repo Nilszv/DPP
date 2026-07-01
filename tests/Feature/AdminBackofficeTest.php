@@ -36,7 +36,7 @@ class AdminBackofficeTest extends TestCase
 
     public function test_admin_can_view_the_overview(): void
     {
-        $this->actingAs($this->admin())->get(route('admin.overview'))->assertOk();
+        $this->actingAsAdmin()->get(route('admin.overview'))->assertOk();
     }
 
     public function test_editing_a_plan_quota_changes_org_quota(): void
@@ -45,7 +45,7 @@ class AdminBackofficeTest extends TestCase
         $this->assertSame(5, $org->publishedQuota());
 
         $medium = Plan::where('key', 'medium')->first();
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->put(route('admin.plans.update', $medium), [
                 'key' => 'medium', 'name' => 'Medium', 'price' => 9, 'interval' => 'month',
                 'published_quota' => 10, 'is_public' => '1', 'active' => '1', 'sort' => 2,
@@ -59,14 +59,14 @@ class AdminBackofficeTest extends TestCase
     {
         $org = $this->org('free');
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->post(route('admin.plans.store'), [
                 'key' => 'custom-acme', 'name' => 'Acme Custom', 'price' => 49, 'interval' => 'month',
                 'published_quota' => 25, 'is_public' => '0', 'active' => '1', 'sort' => 9,
             ])
             ->assertRedirect();
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->put(route('admin.organizations.update', $org), [
                 'plan' => 'custom-acme', 'published_quota_override' => null, 'status' => 'active',
             ])
@@ -81,7 +81,7 @@ class AdminBackofficeTest extends TestCase
     {
         $org = $this->org('free');
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->put(route('admin.organizations.update', $org), [
                 'plan' => 'free', 'published_quota_override' => 50, 'status' => 'active',
             ])
@@ -104,7 +104,7 @@ class AdminBackofficeTest extends TestCase
     {
         $org = $this->org('commercial');
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->put(route('admin.organizations.update', $org), [
                 'plan' => 'commercial', 'published_quota_override' => null,
                 'price_override' => 199, 'interval_override' => 'year', 'status' => 'active',
@@ -159,7 +159,7 @@ class AdminBackofficeTest extends TestCase
         $this->org('free')->update(['legal_name' => 'AlphaIndustries']);
         $this->org('free')->update(['legal_name' => 'BetaCorp']);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->get(route('admin.organizations', ['q' => 'Alpha']))
             ->assertSee('AlphaIndustries')
             ->assertDontSee('BetaCorp');
@@ -174,7 +174,7 @@ class AdminBackofficeTest extends TestCase
         $b = $this->org('free');
         $b->update(['legal_name' => 'BetaCo']);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->get(route('admin.organizations', ['q' => 'finder@acme.test']))
             ->assertSee('AlphaCo')
             ->assertDontSee('BetaCo');
@@ -185,7 +185,7 @@ class AdminBackofficeTest extends TestCase
         $this->org('free')->update(['legal_name' => 'ActiveCo', 'status' => 'active']);
         $this->org('free')->update(['legal_name' => 'SuspendedCo', 'status' => 'suspended']);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->get(route('admin.organizations', ['status' => 'suspended']))
             ->assertSee('SuspendedCo')
             ->assertDontSee('ActiveCo');
@@ -197,7 +197,7 @@ class AdminBackofficeTest extends TestCase
         $org->update(['legal_name' => 'DetailCo', 'country' => 'LV', 'city' => 'Riga']);
         $this->member($org, 'owner@detailco.test');
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->get(route('admin.organizations.show', $org))
             ->assertOk()
             ->assertSee('DetailCo')
@@ -210,7 +210,7 @@ class AdminBackofficeTest extends TestCase
         $org = $this->org('free');
         $user = $this->member($org, 'solo@example.com');
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->delete(route('admin.users.delete', $user))
             ->assertRedirect(route('admin.organizations'));
 
@@ -225,7 +225,7 @@ class AdminBackofficeTest extends TestCase
         $editor = User::create(['name' => 'E', 'email' => 'editor@example.com', 'email_verified_at' => now()]);
         $org->members()->attach($editor->id, ['role' => 'editor']);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->delete(route('admin.users.delete', $editor))
             ->assertRedirect(route('admin.organizations'));
 
@@ -251,7 +251,7 @@ class AdminBackofficeTest extends TestCase
             'status' => 'published', 'default_locale' => 'lv',
         ]);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->delete(route('admin.users.delete', $user))
             ->assertRedirect()
             ->assertSessionHas('error');
@@ -267,7 +267,7 @@ class AdminBackofficeTest extends TestCase
         $editor = User::create(['name' => 'E2', 'email' => 'editor2@example.com', 'email_verified_at' => now()]);
         $org->members()->attach($editor->id, ['role' => 'editor']);
 
-        $this->actingAs($this->admin())
+        $this->actingAsAdmin()
             ->delete(route('admin.users.delete', $owner))
             ->assertRedirect()
             ->assertSessionHas('error');
@@ -277,9 +277,12 @@ class AdminBackofficeTest extends TestCase
 
     public function test_admin_cannot_delete_their_own_account(): void
     {
-        $admin = $this->admin();
+        $admin = User::create([
+            'name' => 'Admin', 'email' => 'admin.'.Str::lower(Str::random(5)).'@example.com',
+            'email_verified_at' => now(),
+        ]);
 
-        $this->actingAs($admin)
+        $this->actingAsAdmin($admin)
             ->delete(route('admin.users.delete', $admin))
             ->assertRedirect()
             ->assertSessionHas('error');
@@ -291,17 +294,6 @@ class AdminBackofficeTest extends TestCase
     {
         $user = User::create(['name' => 'M', 'email' => $email, 'email_verified_at' => now()]);
         $org->members()->attach($user->id, ['role' => 'owner']);
-
-        return $user;
-    }
-
-    private function admin(): User
-    {
-        $user = User::create([
-            'name' => 'Admin', 'email' => 'admin.'.Str::lower(Str::random(5)).'@example.com',
-            'email_verified_at' => now(),
-        ]);
-        $user->forceFill(['is_admin' => true])->save();
 
         return $user;
     }
