@@ -34,6 +34,23 @@ textarea { width: 100%; }
 .field-error { color: #b00020; }
 .muted { color: #666; }
 
+/* Small helper text under a field (e.g. the country-aware VAT / phone hints). */
+.field-hint { color: #666; font-size: 0.85rem; margin: 0.2rem 0 0; }
+
+/* Subtle invalid state, only after the user has interacted (falls back gracefully where
+   :user-invalid is unsupported: no styling, never a false-positive red border on load). */
+input:user-invalid,
+select:user-invalid { outline: 2px solid #e0b4bb; outline-offset: 1px; }
+
+/* Company fields: two columns on wider viewports, single column on narrow screens.
+   Full-width rows (address, hints stay with their input) simply wrap naturally. */
+.form-grid { display: grid; grid-template-columns: 1fr; gap: 0 1rem; }
+@media (min-width: 34rem) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    .form-grid input,
+    .form-grid select { min-width: 0; width: 100%; box-sizing: border-box; }
+}
+
 table { border-collapse: collapse; }
 th, td { text-align: left; padding: 0.3rem 0.7rem; border-bottom: 1px solid #ddd; }
 
