@@ -139,7 +139,9 @@ class AdminController extends Controller
      * Delete a user (support/testing tool, e.g. to retest onboarding from scratch). Also deletes
      * any organization where they are the sole member: the duplicate-registration guard matches
      * on organization fields (name/registration/VAT), not the user, so an orphaned org would
-     * still block re-onboarding with the same company details.
+     * still block re-onboarding with the same company details. Refuses to touch a sole-member
+     * org that has published passports -- published DPPs carry a permanent public resolver link
+     * (GS1 / /p/{uuid}), so this tool must never be able to break one.
      */
     public function deleteUser(User $user)
     {
@@ -155,6 +157,10 @@ class AdminController extends Controller
 
             if ($org->members_count > 1 && $isSoleOwner) {
                 return back()->with('error', "Cannot delete: sole owner of \"{$org->name}\", which has other members. Reassign ownership first.");
+            }
+
+            if ($org->members_count === 1 && $org->publishedCount() > 0) {
+                return back()->with('error', "Cannot delete: \"{$org->name}\" has published passports with permanent public links. Those cannot be deleted with the org; resolve them first.");
             }
         }
 

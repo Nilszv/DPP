@@ -87,9 +87,9 @@ class OnboardingController extends Controller
         $data['vat_id'] = VatNumber::canonical($data['country'], $data['vat_id'] ?? null);
 
         // Duplicate-account guard: three independent checks, any one of which flags a possible
-        // duplicate -- (1) company name + country, (2) registration number alone, (3) VAT number
-        // alone. Repeated attempts suspend the email account (anti-abuse: stops re-registering
-        // to farm free plans).
+        // duplicate -- (1) company name + country, (2) registration number + country, (3) VAT
+        // number alone. Repeated attempts suspend the email account (anti-abuse: stops
+        // re-registering to farm free plans).
         if ($duplicate = $this->findDuplicateOrganization($org, $data)) {
             return $this->handleDuplicate($request, $duplicate);
         }
@@ -147,9 +147,12 @@ class OnboardingController extends Controller
      * Find an already-registered organization that duplicates this one. Three independent
      * guardrails, checked in order -- any single hit flags a possible duplicate:
      *   1. Company name + country (case/whitespace-insensitive; a name is unique per country).
-     *   2. Registration number alone (formatting-insensitive), regardless of name/country.
-     *   3. VAT number alone (already canonical -- includes the country prefix), regardless of
-     *      name/country.
+     *   2. Registration number + country (formatting-insensitive on the number). Registration
+     *      numbers are issued by national registries, so the same digits can coincidentally
+     *      exist in two different countries -- that alone isn't evidence of duplication, so this
+     *      check is scoped to the country like the name check, but stays independent of name.
+     *   3. VAT number alone (already canonical -- includes the country prefix, so it is already
+     *      effectively country-scoped), regardless of name/registration number.
      * Each check is independent on purpose: the same company re-registering with a differently
      * spelled name, or a typo'd/reformatted registration or VAT number, must still be caught by
      * whichever field it kept consistent. Only completed registrations count as existing.
@@ -178,8 +181,8 @@ class OnboardingController extends Controller
             }
         }
 
-        if ($reg !== '') {
-            if ($match = $existing()->whereRaw($regCol.' = ?', [$reg])->first()) {
+        if ($reg !== '' && $country !== null) {
+            if ($match = $existing()->whereRaw($regCol.' = ?', [$reg])->where('country', $country)->first()) {
                 return ['organization' => $match, 'field' => 'registration_number', 'label' => 'registration number'];
             }
         }

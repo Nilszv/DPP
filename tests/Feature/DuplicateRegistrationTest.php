@@ -81,11 +81,11 @@ class DuplicateRegistrationTest extends TestCase
         $this->assertTrue($org->fresh()->isOnboarded());
     }
 
-    public function test_registration_number_match_alone_blocks_despite_different_name_and_country(): void
+    public function test_registration_number_match_within_the_same_country_blocks_despite_different_name(): void
     {
-        // Different company name and country, but the SAME registration number -- the
-        // registration-number check is independent and must fire on its own.
-        $this->existingOrg(['legal_name' => 'Beta Corp', 'country' => 'DE', 'registration_number' => '77777777777', 'vat_id' => 'DE77777777777']);
+        // Same country + registration number, but a DIFFERENT company name -- the
+        // registration-number check is independent of name, but still country-scoped.
+        $this->existingOrg(['legal_name' => 'Beta Corp', 'registration_number' => '77777777777', 'vat_id' => 'LV77777777777']);
         [$user, $org] = $this->makeUserOrg();
 
         $this->actingAs($user)
@@ -96,6 +96,25 @@ class DuplicateRegistrationTest extends TestCase
             ->assertSessionHasErrors('registration_number');
 
         $this->assertFalse($org->fresh()->isOnboarded());
+    }
+
+    public function test_registration_number_match_in_a_different_country_does_not_block(): void
+    {
+        // Same registration number, but a DIFFERENT country and name -- registration numbers
+        // are issued by national registries, so the same digits can coincidentally exist in two
+        // countries; that alone must not block a legitimate, unrelated company.
+        $this->existingOrg(['legal_name' => 'Delta LLC', 'country' => 'DE', 'registration_number' => '66666666666', 'vat_id' => 'DE66666666666']);
+        [$user, $org] = $this->makeUserOrg();
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $this->validPayload([
+                'legal_name' => 'Totally Different Ltd',
+                'registration_number' => '66666666666',
+            ]))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertTrue($org->fresh()->isOnboarded());
     }
 
     public function test_vat_number_match_alone_blocks_despite_different_name_and_country(): void

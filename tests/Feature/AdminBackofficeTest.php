@@ -234,6 +234,32 @@ class AdminBackofficeTest extends TestCase
         $this->assertTrue($org->fresh()->members()->whereKey($owner->id)->exists());
     }
 
+    public function test_admin_cannot_delete_a_sole_member_user_whose_org_has_published_passports(): void
+    {
+        $this->seed(TemplateSeeder::class);
+        $org = $this->org('free');
+        $user = $this->member($org, 'published@example.com');
+
+        $template = Template::where('key', 'generic')->first();
+        $product = Product::create([
+            'organization_id' => $org->id, 'template_id' => $template->id,
+            'name' => 'P', 'category' => 'generic',
+        ]);
+        Passport::create([
+            'organization_id' => $org->id, 'product_id' => $product->id,
+            'public_id' => (string) Str::uuid(), 'identifier_scheme' => 'self',
+            'status' => 'published', 'default_locale' => 'lv',
+        ]);
+
+        $this->actingAs($this->admin())
+            ->delete(route('admin.users.delete', $user))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertNotNull(User::find($user->id));
+        $this->assertNotNull(Organization::find($org->id));
+    }
+
     public function test_admin_cannot_delete_the_sole_owner_of_an_org_with_other_members(): void
     {
         $org = $this->org('free');
