@@ -9,9 +9,27 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 129 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 136 tests pass.
 
-**Just landed (this session): mandatory TOTP two-factor auth for admin users.** Every
+**Just landed: admin impersonation ("log in as" a user, with audit).** From an org's member
+list (`/admin/organizations/{org}`), an admin can temporarily become a regular user - e.g. to
+debug/verify their experience - with zero passwords or login codes needed. Starting one
+requires a **fresh** TOTP/recovery code re-entered immediately before every single start
+(`/admin/impersonate/confirm`), independent of the session's existing `2fa.passed` flag, since
+that could be long-lived or left open in a tab. An admin can never impersonate another admin,
+or themselves - checked at both the initial click *and* again right before the swap (closes a
+TOCTOU window: the target's admin status, or the acting admin's own identity, could change in
+the gap between the two requests). Every start/stop writes to the `audit_log` table (which
+already existed, unused, purpose-built for exactly this) with actor/target/metadata. A
+persistent banner ("You are impersonating {email} - [Stop impersonating]") shows on every
+`/app/*` page while active; logging out fully clears impersonation state with no special
+handling needed (session invalidation already does it). `Auth::loginUsingId()` swaps identity;
+the original admin's id is stashed in the **session** (not the guard, which has no memory of
+the prior identity once swapped) to support returning to it. Verified by tests + a live
+end-to-end HTTP smoke test (start, confirm, org-context check, stop, `audit_log` rows) against
+the production server.
+
+**Previously landed: mandatory TOTP two-factor auth for admin users.** Every
 `is_admin` account must complete an authenticator-app (Google Authenticator/Authy-style) code
 before reaching any `/admin/*` page -- immediately and mandatorily on first admin login, no
 skip. Layered on top of the existing passwordless flow: `PasswordlessController::verify()`
@@ -82,18 +100,12 @@ abstraction (manual driver, DB-driven plans, downgrade guard + Contact sales) ·
 plans, legal editor, user unsuspend) · CI.
 
 **Best next steps (recommended in order):**
-1. **Admin impersonation** (log in as a user, with audit) - this is why admin 2FA just got
-   hardened first; fully unblocked now, no external decision needed. Needs: an audited
-   "become this user" action from the org detail page (who/when/why, reversible, clearly
-   bannered in the UI so it's never mistaken for the admin's own session), gated to
-   manager-tier admins, and almost certainly a *fresh* 2FA step-up (not just `session('2fa.passed')`
-   from earlier in the session) immediately before starting one, given how sensitive it is.
-2. **Post-publish versioning** (corrections to a published passport) - currently a hard wall:
+1. **Post-publish versioning** (corrections to a published passport) - currently a hard wall:
    `PassportController::edit`/`update` flatly refuse any edit once published, with no
-   correction path at all. Pure code, no owner decision needed either.
-3. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
+   correction path at all. Pure code, no owner decision needed.
+2. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
    product owner; not actionable until then.
-4. **Real per-category templates** - blocked on the owner providing field examples.
+3. **Real per-category templates** - blocked on the owner providing field examples.
 
 **Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
 the legal role (host vs. ESPR service provider), first product category, and final domains.
@@ -188,7 +200,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ✅ **Delete a user** (support/testing tool, from the org detail page's member list): also deletes any organization where they're the sole member, since the duplicate-registration guard matches on org fields (name+country, registration number, VAT), not the user - an orphaned org would otherwise still block re-onboarding with the same details. Refuses to delete the last owner of an org that has other members (reassign first). Also refuses to touch a sole-member org that has **published passports** (fixed 2026-07-01, external review): published DPPs carry a permanent public resolver link, so this tool must never be able to delete one out from under a live QR code. An admin can't delete their own account. Verified by tests.
 - ✅ **DB-driven plans** (`plans` table + `Plan` model): create/edit plans, prices, quotas (null = unlimited), public/active flags, custom non-public plans. `Organization::publishedQuota()` precedence: per-org override -> DB plan -> config fallback. Verified by tests.
 - ✅ **QR / passport browser** (`/admin/passports`): platform-wide, paginated (20/page, never loads everything), filter by organization + status, search by public id / GTIN / serial / product name, lazy-loaded QR thumbnails. Verified by tests.
-- ⏸️ Impersonation (log in as a user, with audit) - next
+- ✅ **Impersonation** ("log in as" a user, with audit): from the org detail page's member list, an admin can temporarily become a regular user (never another admin, never themselves). Requires a fresh TOTP/recovery step-up immediately before every start, re-checked again right before the swap (closes a TOCTOU window). Every start/stop writes to `audit_log` (actor/target/meta). Persistent "Stop impersonating" banner on every `/app/*` page while active. Verified by tests + a live end-to-end smoke test.
 - ⏸️ Published-DPP lifecycle tools (archive, legal holds, migrations)
 
 ## Slice 3 - Compliance depth  ⏸️

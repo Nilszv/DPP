@@ -38,6 +38,15 @@
     </header>
 
     <main class="app-main">
+        @if (session('impersonate.original_admin_id'))
+            <p class="impersonation-banner" role="status">
+                You are impersonating {{ auth()->user()->email }}.
+                <form method="POST" action="{{ route('impersonate.stop') }}" style="display:inline">
+                    @csrf
+                    <button type="submit">Stop impersonating</button>
+                </form>
+            </p>
+        @endif
         @if (session('status'))
             <p class="flash-status" role="status">{{ session('status') }}</p>
         @endif

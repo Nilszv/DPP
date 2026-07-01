@@ -127,17 +127,9 @@ class TwoFactorController extends Controller
             'recovery_code' => ['nullable', 'string'],
         ]);
 
-        $ok = $request->filled('recovery_code')
-            ? $this->twoFactor->consumeRecoveryCode($user, $request->input('recovery_code'))
-            : $this->twoFactor->verifyCode($user->two_factor_secret, (string) $request->input('code'));
-
-        if (! $ok) {
-            $this->twoFactor->recordFailedAttempt($user);
-
+        if (! $this->twoFactor->attemptVerification($user, $request->input('code'), $request->input('recovery_code'))) {
             return back()->withErrors(['code' => 'That code is invalid or has expired. Please try again.']);
         }
-
-        $this->twoFactor->clearAttempts($user);
 
         return $onSuccess();
     }

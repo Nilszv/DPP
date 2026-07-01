@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminLegalController;
 use App\Http\Controllers\Admin\AdminPassportController;
 use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Admin\AdminTwoFactorController;
+use App\Http\Controllers\Admin\ImpersonationController;
 use App\Http\Controllers\Auth\PasswordlessController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\BillingController;
@@ -58,6 +59,11 @@ Route::middleware('guest')->group(function () {
 
 // Logout only needs auth (a suspended-org user must still be able to log out).
 Route::post('/logout', [PasswordlessController::class, 'logout'])->middleware('auth')->name('logout');
+
+// End an active impersonation. Bare 'auth' only: must be reachable regardless of the
+// impersonated user's onboarding/suspension/org state, and needs no org context of its own.
+Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])
+    ->middleware('auth')->name('impersonate.stop');
 
 // ---- Admin TOTP two-factor: pending-login setup/verify. Reachable mid-login for an admin
 // (after the primary email code, before Auth::login()) -- neither pure 'guest' nor 'auth' fits,
@@ -172,6 +178,14 @@ Route::middleware(['auth', 'admin', 'admin.2fa'])->prefix('admin')->name('admin.
     Route::post('/security/recovery-codes', [AdminTwoFactorController::class, 'regenerateRecoveryCodes'])
         ->name('security.recovery-codes.regenerate');
     Route::post('/security/reset', [AdminTwoFactorController::class, 'reset'])->name('security.reset');
+
+    // "Log in as" a user, audited, gated by a fresh 2FA step-up immediately before the swap.
+    // The literal /impersonate/confirm routes must be registered BEFORE the /impersonate/{user}
+    // wildcard, or Laravel matches "confirm" as a {user} route-model-binding attempt first.
+    Route::get('/impersonate/confirm', [ImpersonationController::class, 'showConfirm'])->name('impersonate.confirm');
+    Route::post('/impersonate/confirm', [ImpersonationController::class, 'confirm'])
+        ->middleware('throttle:10,1')->name('impersonate.confirm.submit');
+    Route::post('/impersonate/{user}', [ImpersonationController::class, 'start'])->name('impersonate.start');
 });
 
 // ---- Public passport resolver (QR scan target, no auth) ----

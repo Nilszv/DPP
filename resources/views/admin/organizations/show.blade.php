@@ -65,6 +65,12 @@
                                     <button type="submit" class="button-secondary">Lift suspension</button>
                                 </form>
                             @endif
+                            @unless ($member->is(auth()->user()) || $member->isAdmin())
+                                <form method="POST" action="{{ route('admin.impersonate.start', $member) }}">
+                                    @csrf
+                                    <button type="submit" class="button-secondary">Impersonate</button>
+                                </form>
+                            @endunless
                             @unless ($member->is(auth()->user()))
                                 <form method="POST" action="{{ route('admin.users.delete', $member) }}"
                                       onsubmit="return confirm('Delete {{ $member->email }}? This also deletes any organization where they are the sole member, and cannot be undone.');">

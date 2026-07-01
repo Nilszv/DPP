@@ -51,6 +51,28 @@ class TwoFactorService
     }
 
     /**
+     * Check a submitted code (TOTP or recovery) against $user's own 2FA, applying the shared
+     * failed-attempt lockout bookkeeping. Callers still validate request shape (digits:6 etc)
+     * and check tooManyAttempts() before calling this.
+     */
+    public function attemptVerification(User $user, ?string $code, ?string $recoveryCode): bool
+    {
+        $ok = $recoveryCode
+            ? $this->consumeRecoveryCode($user, $recoveryCode)
+            : $this->verifyCode($user->two_factor_secret, (string) $code);
+
+        if (! $ok) {
+            $this->recordFailedAttempt($user);
+
+            return false;
+        }
+
+        $this->clearAttempts($user);
+
+        return true;
+    }
+
+    /**
      * Confirm setup: persist the secret + confirmed_at once the user proves control, and issue
      * a fresh batch of recovery codes. Returns the plaintext codes (shown once), or null if the
      * confirmation code was wrong (nothing persisted).
