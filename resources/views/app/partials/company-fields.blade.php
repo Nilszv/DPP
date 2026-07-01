@@ -46,14 +46,15 @@
 
     <div class="form-row">
         <label for="registration_number">Registration number</label>
-        <input id="registration_number" name="registration_number" type="text" value="{{ old('registration_number', $org->registration_number) }}">
+        <input id="registration_number" name="registration_number" type="text" value="{{ old('registration_number', $org->registration_number) }}" required>
+        @error('registration_number')<p class="field-error">{{ $message }}</p>@enderror
     </div>
 
     <div class="form-row">
         <label for="vat_national">VAT number</label>
         <div class="input-group">
             <span class="input-prefix" id="vat_prefix" data-vat-prefix hidden></span>
-            <input id="vat_national" type="text" autocomplete="off" aria-describedby="vat_hint" data-vat-national required>
+            <input id="vat_national" type="text" autocomplete="off" aria-describedby="vat_hint" data-vat-national>
         </div>
         <input type="hidden" name="vat_id" id="vat_id" value="{{ old('vat_id', $org->vat_id) }}">
         <p class="field-hint" id="vat_hint">Select a country to see the expected format.</p>
@@ -103,7 +104,7 @@
                     <option value="{{ $code }}">{{ $info['name'] }} ({{ $info['dial_code'] }})</option>
                 @endforeach
             </select>
-            <input id="phone_national" type="tel" inputmode="tel" autocomplete="off" aria-describedby="phone_hint" data-phone-national>
+            <input id="phone_national" type="tel" inputmode="tel" autocomplete="off" aria-describedby="phone_hint" data-phone-national required>
         </div>
         <input type="hidden" name="contact_phone" id="contact_phone" value="{{ old('contact_phone', $org->contact_phone) }}">
         <p class="field-hint" id="phone_hint">Pick the dialing code and enter the number.</p>
@@ -201,7 +202,9 @@
             vatPrefixEl.textContent = '';
             vatPrefixEl.hidden = true;
         }
-        // Native validation runs on the visible national input; it is required.
+        // VAT is required only for countries that actually have a VAT format (a prefix).
+        var vatRequired = !!prefix;
+        if (vatRequired) { vatNational.setAttribute('required', ''); } else { vatNational.removeAttribute('required'); }
         if (m && m.r) {
             vatNational.setAttribute('pattern', '^(' + m.r + ')$');
             vatNational.setAttribute('maxlength', String(maxLen(m.r)));
@@ -212,9 +215,9 @@
         var numeric = m ? isNumericVat(m.r) : true;
         vatNational.setAttribute('inputmode', numeric ? 'numeric' : 'text');
         if (vatHint) {
-            vatHint.textContent = (m && prefix)
+            vatHint.textContent = vatRequired
                 ? 'Format: ' + describeVat(prefix, m.r) + '. Required.'
-                : 'Required.';
+                : 'Not applicable for this country. Optional.';
         }
         filterVatNational();
         syncVat();

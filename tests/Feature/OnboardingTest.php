@@ -9,6 +9,7 @@ use App\Models\User;
 use Database\Seeders\LegalDocumentSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class OnboardingTest extends TestCase
@@ -43,7 +44,7 @@ class OnboardingTest extends TestCase
         $this->assertFalse($org->fresh()->isOnboarded());
     }
 
-    public function test_vat_id_is_required(): void
+    public function test_vat_id_is_required_for_a_country_with_a_vat_format(): void
     {
         [$user] = $this->makeUserOrg();
 
@@ -53,6 +54,60 @@ class OnboardingTest extends TestCase
         $this->actingAs($user)
             ->post(route('onboarding.store'), $payload)
             ->assertSessionHasErrors('vat_id');
+    }
+
+    public function test_vat_id_is_optional_for_a_country_without_a_vat_format(): void
+    {
+        [$user, $org] = $this->makeUserOrg();
+
+        // US has no VAT prefix in config/tax.php, so VAT may be left blank.
+        $payload = $this->validPayload(['country' => 'US']);
+        unset($payload['vat_id']);
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $payload)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertTrue($org->fresh()->isOnboarded());
+    }
+
+    #[DataProvider('requiredProfileFields')]
+    public function test_profile_field_is_required(string $field): void
+    {
+        [$user] = $this->makeUserOrg();
+
+        $payload = $this->validPayload();
+        unset($payload[$field]);
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $payload)
+            ->assertSessionHasErrors($field);
+    }
+
+    public static function requiredProfileFields(): array
+    {
+        return [
+            'registration_number' => ['registration_number'],
+            'contact_phone' => ['contact_phone'],
+            'city' => ['city'],
+            'postal_code' => ['postal_code'],
+        ];
+    }
+
+    public function test_address_line_2_is_optional(): void
+    {
+        [$user, $org] = $this->makeUserOrg();
+
+        $payload = $this->validPayload();
+        unset($payload['address_line2']);
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $payload)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertTrue($org->fresh()->isOnboarded());
     }
 
     public function test_invalid_country_is_rejected(): void
@@ -134,9 +189,11 @@ class OnboardingTest extends TestCase
             'city' => 'Riga',
             'postal_code' => 'LV-1001',
             'country' => 'LV',
+            'registration_number' => '40003011283',
             'vat_id' => 'LV40003011283',
             'contact_name' => 'Jane Doe',
             'contact_email' => 'jane@acme.test',
+            'contact_phone' => '+371 12345678',
             'accept' => ['registration_policy' => '1'],
         ], $extra);
     }

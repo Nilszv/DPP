@@ -46,11 +46,19 @@ class OnboardingController extends Controller
         // empty (e.g. a deploy that migrated but did not seed), this is a misconfiguration.
         abort_if($documents->isEmpty(), 503, 'Registration is temporarily unavailable. Please try again shortly.');
 
-        // Company profile rules (easy to adjust: edit this list).
+        // VAT is required only for countries that actually operate a VAT number (i.e. have a
+        // prefix configured); countries without one (e.g. US) may leave it blank.
+        $countriesWithoutVat = array_keys(array_filter(
+            config('tax.countries'),
+            fn ($c) => empty($c['vat_prefix'])
+        ));
+
+        // Company profile rules (easy to adjust: edit this list). Everything is required
+        // except the optional second address line.
         $rules = [
             'legal_name' => ['required', 'string', 'max:255'],
-            'registration_number' => ['nullable', 'string', 'max:100'],
-            'vat_id' => ['required', 'string', 'max:50'],
+            'registration_number' => ['required', 'string', 'max:100'],
+            'vat_id' => ['nullable', Rule::requiredIf(fn () => ! in_array($request->input('country'), $countriesWithoutVat, true)), 'string', 'max:50'],
             'address_line1' => ['required', 'string', 'max:255'],
             'address_line2' => ['nullable', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:120'],
@@ -58,7 +66,7 @@ class OnboardingController extends Controller
             'country' => ['required', Rule::in(array_keys(config('tax.countries')))],
             'contact_name' => ['required', 'string', 'max:255'],
             'contact_email' => ['required', 'email', 'max:255'],
-            'contact_phone' => ['nullable', 'string', 'max:50'],
+            'contact_phone' => ['required', 'string', 'max:50'],
         ];
 
         // Every required legal document must be explicitly accepted.
