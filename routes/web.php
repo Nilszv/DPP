@@ -13,6 +13,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PassportController;
 use App\Http\Controllers\ResolverController;
+use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -66,14 +67,22 @@ Route::middleware('auth')->group(function () {
 Route::post('/app/switch-org', [CurrentOrganizationController::class, 'switch'])
     ->middleware(['auth', 'org.context'])->name('current-org.switch');
 
+// Support / contact page. Auth-only and NOT behind 'not.suspended' on purpose: a suspended
+// account must still be able to reach support (and log out) to get help.
+Route::middleware('auth')->group(function () {
+    Route::get('/app/support', [SupportController::class, 'show'])->name('support.show');
+    Route::post('/app/support', [SupportController::class, 'send'])
+        ->middleware('throttle:5,1')->name('support.send');
+});
+
 // First-run onboarding (reachable before the org is onboarded; not behind 'onboarded').
-Route::middleware(['auth', 'org.context', 'org.active'])->group(function () {
+Route::middleware(['auth', 'org.context', 'org.active', 'not.suspended'])->group(function () {
     Route::get('/app/onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::post('/app/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
 });
 
 // ---- Authenticated platform (/app), requires a completed onboarding ----
-Route::middleware(['auth', 'org.context', 'org.active', 'onboarded'])->group(function () {
+Route::middleware(['auth', 'org.context', 'org.active', 'not.suspended', 'onboarded'])->group(function () {
     Route::get('/app', function () {
         return view('app.dashboard');
     })->name('dashboard');
@@ -116,6 +125,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/organizations/{organization}', [AdminController::class, 'showOrganization'])->name('organizations.show');
     Route::get('/organizations/{organization}/edit', [AdminController::class, 'editOrganization'])->name('organizations.edit');
     Route::put('/organizations/{organization}', [AdminController::class, 'updateOrganization'])->name('organizations.update');
+
+    // Lift a user-level suspension (e.g. after resolving a duplicate-registration case).
+    Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->name('users.unsuspend');
 
     Route::get('/passports', [AdminPassportController::class, 'index'])->name('passports.index');
     Route::get('/passports/{passport}/qr', [AdminPassportController::class, 'qr'])->name('passports.qr');

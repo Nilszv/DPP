@@ -119,4 +119,19 @@ class AdminController extends Controller
         return redirect()->route('admin.organizations')
             ->with('status', "Updated {$organization->name}.");
     }
+
+    /**
+     * Lift a user-level suspension (e.g. after resolving a duplicate-registration case) and
+     * reset the blocked-attempt counter so the account gets a clean slate.
+     */
+    public function unsuspendUser(User $user)
+    {
+        $user->forceFill([
+            'suspended_at' => null,
+            'suspension_reason' => null,
+            'duplicate_onboarding_attempts' => 0,
+        ])->save();
+
+        return back()->with('status', "Lifted suspension for {$user->email}.");
+    }
 }

@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\EnsureOrganizationActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
+use App\Http\Middleware\EnsureUserNotSuspended;
 use App\Http\Middleware\SetCurrentOrganization;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'org.context' => SetCurrentOrganization::class,
             'org.active' => EnsureOrganizationActive::class,
             'onboarded' => EnsureOnboarded::class,
+            'not.suspended' => EnsureUserNotSuspended::class,
             'admin' => EnsureUserIsAdmin::class,
         ]);
     })

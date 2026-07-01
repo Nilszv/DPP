@@ -78,6 +78,8 @@ scannable QR resolve to a public passport page. **Done.**
 - ✅ **Acceptance audit trail** (`legal_acceptances`): records which org/user accepted which document version, when, with an HMAC-hashed IP - evidence for the 10-year duty.
 - ✅ **Company profile page** (`/app/organization`): shows the captured data + applicable VAT; owner/admin can edit. Shared `company-fields` partial keeps the form easy to adjust in one place.
 - ✅ **Country + VAT config** (`config/tax.php`, EU-27 + a few others): single source for the country dropdown and the tax rate applied later at billing time.
+- ✅ **Country-aware onboarding fields**: country first; VAT number shows a locked country prefix (Greece `EL`, Switzerland `CHE` handled) with digit-only, length-capped entry and per-country format validation; contact phone has a searchable dial-code dropdown. All fields required except address line 2; VAT required only for countries that operate a VAT number.
+- ✅ **Duplicate-registration guard**: onboarding blocks completion when company name + registration number + VAT number all match an existing org. Repeated attempts (default: 4th) suspend the **email account** (user-level `suspended_at`), gate it to `/app/support` (contact form: phone/email/company/message), and alert `SUPPORT_EMAIL` with an admin-only reason. Admin lifts the suspension from the org detail page. See `PRE_LAUNCH_CHECKLIST.md` for the `dev@vdisain.lv` placeholders to swap before launch.
 
 ### DPP product layer
 - ✅ Generic template seeded (`TemplateSeeder`); product created behind the passport wizard

@@ -16,6 +16,15 @@ return [
     /* Where "Contact sales" messages are delivered (e.g. downgrade requests, custom plans). */
     'sales_email' => env('SALES_EMAIL', 'dev@vdisain.lv'),
 
+    /* Where support / abuse alerts are delivered (duplicate-registration suspensions, the
+     | in-app support form). Placeholder until the real support inbox is set -- see
+     | docs/PRE_LAUNCH_CHECKLIST.md. */
+    'support_email' => env('SUPPORT_EMAIL', 'dev@vdisain.lv'),
+
+    /* Blocked duplicate-registration attempts allowed before the email is auto-suspended.
+     | Errors are shown for attempts 1..N; exceeding N (the N+1th) suspends the account. */
+    'onboarding_duplicate_max_attempts' => (int) env('ONBOARDING_DUPLICATE_MAX_ATTEMPTS', 3),
+
     /* Audiences the tiered resolver/snapshots support. Only 'consumer' renders in Slice 1. */
     'audiences' => ['consumer', 'repairer', 'recycler', 'authority', 'full'],
 

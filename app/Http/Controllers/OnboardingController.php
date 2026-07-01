@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\DuplicateRegistrationAlert;
 use App\Models\LegalAcceptance;
 use App\Models\LegalDocument;
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 /**
@@ -78,6 +81,13 @@ class OnboardingController extends Controller
             'accept.*.accepted' => 'You must read and accept all policies to complete registration.',
         ]);
 
+        // Duplicate-account guard: if the company name, registration number AND VAT number
+        // all match an already-registered organization, block completion. Repeated attempts
+        // suspend the email account (anti-abuse: stops re-registering to farm free plans).
+        if ($match = $this->findDuplicateOrganization($org, $data)) {
+            return $this->handleDuplicate($request, $match);
+        }
+
         DB::transaction(function () use ($org, $request, $data, $documents) {
             $org->update([
                 'name' => $data['legal_name'],            // display name = company name
@@ -111,6 +121,85 @@ class OnboardingController extends Controller
 
         return redirect()->route('dashboard')
             ->with('status', 'Registration complete. Welcome aboard.');
+    }
+
+    /**
+     * Find an already-registered organization whose company name, registration number AND
+     * VAT number all match the submitted values (case-insensitive, whitespace-normalized).
+     * Only completed registrations count. Returns null when no full match exists.
+     */
+    private function findDuplicateOrganization(Organization $org, array $data): ?Organization
+    {
+        $norm = fn (?string $v): string => preg_replace('/\s+/', ' ', mb_strtolower(trim((string) $v)));
+
+        $legal = $norm($data['legal_name'] ?? '');
+        $reg = $norm($data['registration_number'] ?? '');
+        $vat = $norm($data['vat_id'] ?? '');
+
+        // All three must be present to assert a duplicate (e.g. a VAT-less country cannot).
+        if ($legal === '' || $reg === '' || $vat === '') {
+            return null;
+        }
+
+        // Normalize the stored column the same way (lower + trim + collapse whitespace).
+        $col = fn (string $c): string => "regexp_replace(lower(btrim(coalesce($c, ''))), '\\s+', ' ', 'g')";
+
+        return Organization::query()
+            ->whereKeyNot($org->id)
+            ->whereNotNull('onboarding_completed_at')
+            ->whereRaw($col('legal_name').' = ?', [$legal])
+            ->whereRaw($col('registration_number').' = ?', [$reg])
+            ->whereRaw($col('vat_id').' = ?', [$vat])
+            ->first();
+    }
+
+    /**
+     * Record a blocked duplicate attempt. Below the threshold, return the user to the form
+     * with an error. Once attempts exceed the threshold, suspend the email account, alert
+     * support (admin-only reason), and send the user to the support page.
+     */
+    private function handleDuplicate(Request $request, Organization $match)
+    {
+        $threshold = (int) config('dpp.onboarding_duplicate_max_attempts', 3);
+
+        $suspended = DB::transaction(function () use ($request, $match, $threshold): ?User {
+            /** @var User $user */
+            $user = User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
+            $user->duplicate_onboarding_attempts++;
+
+            $reason = sprintf(
+                'Duplicate registration blocked %d time(s). Company name, registration number and '
+                .'VAT number all match existing organization "%s" (id %s).',
+                $user->duplicate_onboarding_attempts,
+                $match->name,
+                $match->id,
+            );
+
+            if ($user->duplicate_onboarding_attempts > $threshold) {
+                $user->suspended_at = now();
+                $user->suspension_reason = $reason;
+            }
+
+            $user->save();
+
+            return $user->isSuspended() ? $user : null;
+        });
+
+        if ($suspended) {
+            Mail::to(config('dpp.support_email'))->send(new DuplicateRegistrationAlert(
+                user: $suspended,
+                matchedOrganization: $match,
+                reason: (string) $suspended->suspension_reason,
+                attempts: (int) $suspended->duplicate_onboarding_attempts,
+            ));
+
+            return redirect()->route('support.show');
+        }
+
+        return back()->withInput()->withErrors([
+            'vat_id' => 'An organization with this company name, registration number and VAT '
+                .'number is already registered. If this is your company, please contact support.',
+        ]);
     }
 
     private function currentOrg(): Organization

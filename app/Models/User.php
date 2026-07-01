@@ -35,6 +35,16 @@ class User extends Authenticatable
         return (bool) $this->is_admin;
     }
 
+    /**
+     * Whether this email account is suspended (e.g. repeated duplicate-registration abuse).
+     * A suspended user can still log in but is gated to the support page until an admin
+     * lifts it. Distinct from Organization::isSuspended().
+     */
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
+    }
+
     /** Organizations this user belongs to, with their in-org role. */
     public function organizations(): BelongsToMany
     {
@@ -108,6 +118,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'suspended_at' => 'datetime',
         ];
     }
 }

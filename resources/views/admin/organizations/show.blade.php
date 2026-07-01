@@ -44,17 +44,35 @@
     <section>
         <h2>Members</h2>
         <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
             <tbody>
                 @foreach ($organization->members as $member)
                     <tr>
                         <td>{{ $member->name }}</td>
                         <td>{{ $member->email }}</td>
                         <td>{{ $member->pivot->role }}</td>
+                        <td>
+                            @if ($member->isSuspended())
+                                <span class="field-error" title="{{ $member->suspension_reason }}">Suspended</span>
+                            @else
+                                Active
+                            @endif
+                        </td>
+                        <td>
+                            @if ($member->isSuspended())
+                                <form method="POST" action="{{ route('admin.users.unsuspend', $member) }}">
+                                    @csrf
+                                    <button type="submit" class="button-secondary">Lift suspension</button>
+                                </form>
+                            @endif
+                        </td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
+        @if ($organization->members->contains(fn ($m) => $m->isSuspended()))
+            <p class="muted">A suspended member's reason (admin only) is shown on hover of the Suspended label.</p>
+        @endif
     </section>
 
     <section>
