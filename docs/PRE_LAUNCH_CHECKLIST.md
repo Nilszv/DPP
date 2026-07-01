@@ -50,8 +50,29 @@ Tuning knob:
 - [ ] `PASSPORT_BASE_URL` is the permanent public resolver host (QR carriers are permanent).
 - [ ] Final marketing (WordPress) domain vs. platform domain decided and DNS set.
 
+## 4. Manual re-verification before launch
+
+- [ ] **Tiered public views (repairer/recycler/authority) + the `published_snapshots` fix.**
+      A severe bug was found and fixed here on 2026-07-01: saving one `published_snapshots` row
+      could silently overwrite every row in the table (see `STATUS.md`). Automated tests now
+      guard against it, but this is important enough to also confirm by hand before launch:
+      1. Publish a test passport whose data differs across audiences (e.g. set both
+         `care_instructions` and `recyclability` - the generic template only shows one to
+         repairer and the other to recycler).
+      2. Visit the plain public link (`/p/{public_id}`) - normal consumer view, no audience
+         banner.
+      3. From the passport's show page (as an editor+), copy each tier link (repairer/
+         recycler/authority) and open it in a private window; confirm the fields shown match
+         that audience's access_map, and that the page reads "Viewing: {Audience} information".
+      4. Regenerate one tier's link; confirm the OLD link now 404s and the NEW one works.
+      5. Spot-check a few real (already-published) passports in production: for every
+         `published_snapshots` row, the `audience` column must match `rendered->>'audience'`.
+         Any mismatch means the corruption is back - stop and investigate immediately rather
+         than proceeding with launch.
+
 ---
 
 Notes:
 - This list is intentionally about launch-blocking configuration, not features. Feature status
-  lives in `STATUS.md`.
+  lives in `STATUS.md`. Section 4 is an exception: manual re-verification of a fix serious
+  enough to double-check by hand, not a general feature-testing list.
