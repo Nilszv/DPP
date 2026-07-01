@@ -43,6 +43,18 @@ class OnboardingTest extends TestCase
         $this->assertFalse($org->fresh()->isOnboarded());
     }
 
+    public function test_vat_id_is_required(): void
+    {
+        [$user] = $this->makeUserOrg();
+
+        $payload = $this->validPayload();
+        unset($payload['vat_id']);
+
+        $this->actingAs($user)
+            ->post(route('onboarding.store'), $payload)
+            ->assertSessionHasErrors('vat_id');
+    }
+
     public function test_invalid_country_is_rejected(): void
     {
         [$user] = $this->makeUserOrg();
@@ -122,6 +134,7 @@ class OnboardingTest extends TestCase
             'city' => 'Riga',
             'postal_code' => 'LV-1001',
             'country' => 'LV',
+            'vat_id' => 'LV40003011283',
             'contact_name' => 'Jane Doe',
             'contact_email' => 'jane@acme.test',
             'accept' => ['registration_policy' => '1'],

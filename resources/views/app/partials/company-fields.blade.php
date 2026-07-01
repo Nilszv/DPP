@@ -53,7 +53,7 @@
         <label for="vat_national">VAT number</label>
         <div class="input-group">
             <span class="input-prefix" id="vat_prefix" data-vat-prefix hidden></span>
-            <input id="vat_national" type="text" autocomplete="off" aria-describedby="vat_hint" data-vat-national>
+            <input id="vat_national" type="text" autocomplete="off" aria-describedby="vat_hint" data-vat-national required>
         </div>
         <input type="hidden" name="vat_id" id="vat_id" value="{{ old('vat_id', $org->vat_id) }}">
         <p class="field-hint" id="vat_hint">Select a country to see the expected format.</p>
@@ -150,6 +150,24 @@
         return prefix + ' + national number (letters and digits allowed)';
     }
 
+    // Longest string the national pattern can match, used to cap the input length so more
+    // than the required number of digits cannot be entered. Handles our token vocabulary
+    // (\d, [A-Z0-9], literals) with {n} / {n,m} quantifiers and | alternation.
+    function maxLen(pattern) {
+        return pattern.split('|').reduce(function (mx, alt) {
+            var len = 0, i = 0;
+            while (i < alt.length) {
+                if (alt[i] === '\\') { i += 2; }
+                else if (alt[i] === '[') { i = alt.indexOf(']', i) + 1; }
+                else { i += 1; }
+                var q = alt.slice(i).match(/^\{(\d+)(?:,(\d+))?\}/);
+                if (q) { len += q[2] !== undefined ? parseInt(q[2], 10) : parseInt(q[1], 10); i += q[0].length; }
+                else { len += 1; }
+            }
+            return Math.max(mx, len);
+        }, 0);
+    }
+
     function vatMeta() { return meta[country.value] || null; }
 
     // Keep only the characters this country's VAT allows (digits, or upper-case alphanumerics).
@@ -183,18 +201,20 @@
             vatPrefixEl.textContent = '';
             vatPrefixEl.hidden = true;
         }
-        // Native validation runs on the visible national input (optional -> empty allowed).
+        // Native validation runs on the visible national input; it is required.
         if (m && m.r) {
-            vatNational.setAttribute('pattern', '^(' + m.r + ')?$');
+            vatNational.setAttribute('pattern', '^(' + m.r + ')$');
+            vatNational.setAttribute('maxlength', String(maxLen(m.r)));
         } else {
             vatNational.removeAttribute('pattern');
+            vatNational.removeAttribute('maxlength');
         }
         var numeric = m ? isNumericVat(m.r) : true;
         vatNational.setAttribute('inputmode', numeric ? 'numeric' : 'text');
         if (vatHint) {
             vatHint.textContent = (m && prefix)
-                ? 'Format: ' + describeVat(prefix, m.r) + '. Optional.'
-                : 'Optional.';
+                ? 'Format: ' + describeVat(prefix, m.r) + '. Required.'
+                : 'Required.';
         }
         filterVatNational();
         syncVat();

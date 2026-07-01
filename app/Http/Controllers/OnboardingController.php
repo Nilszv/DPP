@@ -50,7 +50,7 @@ class OnboardingController extends Controller
         $rules = [
             'legal_name' => ['required', 'string', 'max:255'],
             'registration_number' => ['nullable', 'string', 'max:100'],
-            'vat_id' => ['nullable', 'string', 'max:50'],
+            'vat_id' => ['required', 'string', 'max:50'],
             'address_line1' => ['required', 'string', 'max:255'],
             'address_line2' => ['nullable', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:120'],
