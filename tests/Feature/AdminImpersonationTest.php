@@ -112,6 +112,54 @@ class AdminImpersonationTest extends TestCase
         $this->assertSame(0, AuditLog::where('action', 'impersonation.started')->count());
     }
 
+    public function test_impersonated_session_does_not_inherit_the_admins_2fa_passed_flag(): void
+    {
+        [$admin, $secret] = $this->makeConfirmedAdminSession();
+        $org = $this->org();
+        $member = $this->member($org, 'member5@example.com');
+
+        // Target kept a confirmed TOTP setup from a prior admin life -- exactly the state where
+        // an inherited 2fa.passed flag would satisfy BOTH halves of the admin 2FA middleware.
+        $member->forceFill([
+            'two_factor_secret' => app(TwoFactorService::class)->generateSecret(),
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
+        $this->post(route('admin.impersonate.start', $member));
+        $code = app(Google2FA::class)->getCurrentOtp($secret);
+        $this->post(route('admin.impersonate.confirm.submit'), ['code' => $code])
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticatedAs($member->fresh());
+        $this->assertNull(session('2fa.passed'));
+
+        // Even promoted to admin mid-impersonation, the session must be forced to re-verify.
+        $member->forceFill(['is_admin' => true])->save();
+        // The test kernel caches the auth user instance across requests in one test; drop it so
+        // the next request re-resolves from the session + DB like a real request would.
+        $this->app['auth']->forgetGuards();
+        $this->get(route('admin.overview'))->assertRedirect(route('2fa.reverify'));
+    }
+
+    public function test_stopping_impersonation_restores_the_admins_2fa_passed_flag(): void
+    {
+        [$admin, $secret] = $this->makeConfirmedAdminSession();
+        $org = $this->org();
+        $member = $this->member($org, 'member6@example.com');
+
+        $this->post(route('admin.impersonate.start', $member));
+        $code = app(Google2FA::class)->getCurrentOtp($secret);
+        $this->post(route('admin.impersonate.confirm.submit'), ['code' => $code]);
+        $this->assertAuthenticatedAs($member->fresh());
+
+        $this->post(route('impersonate.stop'));
+
+        $this->assertAuthenticatedAs($admin->fresh());
+        $this->assertTrue((bool) session('2fa.passed'));
+        // The returning admin gets straight back into /admin without a re-verify bounce.
+        $this->get(route('admin.overview'))->assertOk();
+    }
+
     public function test_stop_when_not_impersonating_is_a_safe_noop(): void
     {
         [$admin] = $this->makeConfirmedAdminSession();

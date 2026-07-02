@@ -9,7 +9,7 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 136 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 138 tests pass.
 
 **Just landed: admin impersonation ("log in as" a user, with audit).** From an org's member
 list (`/admin/organizations/{org}`), an admin can temporarily become a regular user - e.g. to
@@ -27,7 +27,14 @@ handling needed (session invalidation already does it). `Auth::loginUsingId()` s
 the original admin's id is stashed in the **session** (not the guard, which has no memory of
 the prior identity once swapped) to support returning to it. Verified by tests + a live
 end-to-end HTTP smoke test (start, confirm, org-context check, stop, `audit_log` rows) against
-the production server.
+the production server. (2026-07-02, external review P1 fix: `session()->regenerate()` after the
+identity swap keeps session *data*, so the impersonated session silently inherited the admin's
+`2fa.passed` flag - if the target was promoted to admin mid-impersonation, or still had a
+confirmed TOTP setup from a prior admin life, the admin 2FA middleware treated the session as
+already verified. The flag is now cleared on entering impersonation and re-granted only when
+stop() logs the original admin back in - safe because the only path that sets
+`impersonate.original_admin_id` is a confirm() that just verified a fresh code. Both scenarios
+covered by regression tests.)
 
 **Previously landed: mandatory TOTP two-factor auth for admin users.** Every
 `is_admin` account must complete an authenticator-app (Google Authenticator/Authy-style) code

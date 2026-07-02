@@ -90,6 +90,13 @@ class ImpersonationController extends Controller
 
         Auth::loginUsingId($target->id);
         $request->session()->regenerate();
+
+        // regenerate() only swaps the session ID -- the DATA carries over, including the
+        // admin's 2fa.passed flag. Left in place, the impersonated session would count as
+        // 2FA-verified: if the target is promoted to admin mid-impersonation (or kept a
+        // confirmed TOTP setup from a prior admin life), both halves of the admin 2FA
+        // middleware would pass. The flag belongs to the admin, not this identity -- drop it.
+        $request->session()->forget('2fa.passed');
         $request->session()->put('impersonate.original_admin_id', $originalAdminId);
 
         return redirect()->route('dashboard');
@@ -119,6 +126,12 @@ class ImpersonationController extends Controller
 
         Auth::loginUsingId($originalAdminId);
         $request->session()->regenerate();
+
+        // Safe to re-grant: impersonate.original_admin_id can only ever be set by confirm(),
+        // which required a fresh TOTP/recovery code from this same admin moments before the
+        // swap. Without this, stopping would bounce the admin to re-verify (confirm() cleared
+        // the flag for the impersonated identity), which punishes using the stop button.
+        $request->session()->put('2fa.passed', true);
 
         return redirect()->to($returnTo);
     }
