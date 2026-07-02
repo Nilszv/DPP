@@ -52,11 +52,13 @@ class TieredPublicViewsTest extends TestCase
     {
         $passport = $this->publishedPassport();
 
-        $this->assertSame(5, PublishedSnapshot::where('passport_id', $passport->id)->count());
+        // 5 audiences x 2 public locales (lv default + en).
+        $this->assertSame(10, PublishedSnapshot::where('passport_id', $passport->id)->count());
+        $this->assertSame(5, PublishedSnapshot::where('passport_id', $passport->id)->where('locale', 'en')->count());
 
         // care_instructions: consumer + repairer only (per the seeded access_map).
-        $repairer = PublishedSnapshot::where('passport_id', $passport->id)->where('audience', 'repairer')->first();
-        $recycler = PublishedSnapshot::where('passport_id', $passport->id)->where('audience', 'recycler')->first();
+        $repairer = PublishedSnapshot::where('passport_id', $passport->id)->where('audience', 'repairer')->where('locale', 'en')->first();
+        $recycler = PublishedSnapshot::where('passport_id', $passport->id)->where('audience', 'recycler')->where('locale', 'en')->first();
 
         $this->assertTrue(collect($repairer->rendered['fields'])->contains('label', 'Care instructions'));
         $this->assertFalse(collect($recycler->rendered['fields'])->contains('label', 'Care instructions'));
@@ -71,7 +73,7 @@ class TieredPublicViewsTest extends TestCase
         $passport = $this->publishedPassport();
         $token = $passport->accessTokens()->where('audience', 'repairer')->first()->token;
 
-        $this->get("/p/{$passport->public_id}/repairer/{$token}")
+        $this->get("/p/{$passport->public_id}/repairer/{$token}?lang=en")
             ->assertOk()
             ->assertSee('Care instructions')
             ->assertDontSee('Recyclability');
@@ -82,7 +84,7 @@ class TieredPublicViewsTest extends TestCase
         $passport = $this->publishedPassport();
         $token = $passport->accessTokens()->where('audience', 'recycler')->first()->token;
 
-        $this->get("/p/{$passport->public_id}/recycler/{$token}")
+        $this->get("/p/{$passport->public_id}/recycler/{$token}?lang=en")
             ->assertOk()
             ->assertSee('Recyclability')
             ->assertDontSee('Care instructions');
@@ -93,7 +95,7 @@ class TieredPublicViewsTest extends TestCase
         $passport = $this->publishedPassport();
         $token = $passport->accessTokens()->where('audience', 'authority')->first()->token;
 
-        $this->get("/p/{$passport->public_id}/authority/{$token}")
+        $this->get("/p/{$passport->public_id}/authority/{$token}?lang=en")
             ->assertOk()
             ->assertSee('Country of manufacture');
     }

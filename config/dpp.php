@@ -10,6 +10,19 @@ return [
     /* Default Member-State language for the public passport layer. */
     'default_locale' => env('PASSPORT_DEFAULT_LOCALE', 'lv'),
 
+    /*
+     | Locales the public layer serves: snapshot rows are pre-built per locale x audience at
+     | publish/correction time (labels + page chrome localized; the manufacturer's field
+     | VALUES are served as entered -- regulated data is never machine-translated). Adding a
+     | buyer Member-State language = add it here + lang/{locale}/public.php + template label
+     | translations, then rebuild snapshots. A passport's own default_locale is always built
+     | even if it is missing from this list.
+     */
+    'locales' => array_filter(array_map(
+        'trim',
+        explode(',', (string) env('PASSPORT_LOCALES', 'lv,en'))
+    )),
+
     /* Keyed HMAC secret for hashing scanner IPs (GDPR). Rotating it is intentional. */
     'scan_ip_hmac_key' => env('SCAN_IP_HMAC_KEY', env('APP_KEY', '')),
 

@@ -31,4 +31,14 @@ class Template extends Model
             ->pluck('key')
             ->all();
     }
+
+    /**
+     * A field's display label for a public-layer locale. Fields carry an optional per-locale
+     * 'labels' map next to the plain 'label', which stays the manufacturer-facing form label
+     * and the fallback for locales/templates without a translation.
+     */
+    public static function fieldLabel(array $field, string $locale): string
+    {
+        return $field['labels'][$locale] ?? $field['label'];
+    }
 }

@@ -9,7 +9,28 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 152 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 161 tests pass.
+
+**Just landed: public-layer i18n (LV/EN, extensible per buyer Member-State language).**
+Snapshot rows are now pre-built per **locale x audience** at publish/correction time
+(`config('dpp.locales')`, env `PASSPORT_LOCALES=lv,en`; a passport's own `default_locale` is
+always built even if dropped from the list). Field **labels** localize via an optional
+per-locale `labels` map on each template field (plain `label` stays the manufacturer-facing
+form label and the public fallback for untranslated templates); field **values** are always
+served exactly as the manufacturer entered them -- regulated data is never machine-translated.
+Page chrome is translated via `lang/{lv,en}/public.php`. The resolver negotiates: explicit
+`?lang=` wins, then `Accept-Language` (matched on primary subtags, and only when the header is
+genuinely present -- Symfony fabricates a default `en` otherwise, which must not outrank the
+passport's own default), then the passport's `default_locale`; only locales that actually have
+a snapshot row are ever chosen, so pre-backfill passports simply don't offer a language until
+rebuilt. HTML responses carry a language switcher + `Vary: Accept, Accept-Language` alongside
+the existing cache headers; JSON-LD returns the negotiated locale. A backfill migration
+re-seeds the generic template (now with LV/EN label maps -- guaranteed by migration, same
+precedent as the registration policy) and rebuilds all published passports' snapshots.
+**Adding a language later** = add it to `PASSPORT_LOCALES` + a `lang/{locale}/public.php` +
+template label translations, then rebuild snapshots. Verified by 9 tests (`PublicI18nTest`)
++ a live LV/EN smoke test (HTML chrome/labels + switcher + JSON-LD negotiation) against the
+production server; the live DB was backfilled by the migration.
 
 **Just landed: post-publish corrections (versioned editing of published passports).**
 Previously a hard wall ("Published passports are locked. Versioned editing comes later.") --
@@ -139,9 +160,10 @@ abstraction (manual driver, DB-driven plans, downgrade guard + Contact sales) ·
 plans, legal editor, user unsuspend) · CI.
 
 **Best next steps (recommended in order):**
-1. ~~**Post-publish versioning**~~ ✅ done (see "Just landed" above).
-2. **i18n on the public layer** (LV/EN + buyer Member-State language) or **print-ready PNG
-   QR export** (Imagick; SVG done) - the remaining pure-code items needing no owner decision.
+1. ~~**Post-publish versioning**~~ ✅ done. ~~**i18n on the public layer**~~ ✅ done.
+2. **Admin audit-trail surface** (browse/filter `audit_log`, which now has real content:
+   impersonations + correction publishes) or **print-ready PNG QR export** (needs
+   `php8.3-imagick` installed; SVG done) - remaining pure-code items, no owner decision.
 3. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
    product owner; not actionable until then.
 4. **Real per-category templates** - blocked on the owner providing field examples.
@@ -248,7 +270,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ⏸️ EU Registry push + commodity code
 - 🔨 Full versioning UI + audit trail surface (partial: post-publish corrections + version history table on the passport page are done; a browsable audit-trail surface is not)
 - ⏸️ Persistence/backup tier (cold archive export to object storage, 3rd-party backup copy)
-- ⏸️ i18n (LV/EN + buyer Member-State language on public layer)
+- ✅ i18n on the **public layer** (LV/EN, per-locale snapshots + resolver language negotiation + translated chrome/labels; adding a Member-State language is config + lang file + label translations + snapshot rebuild). The authenticated app UI (`/app`, `/admin`) remains English-only for now.
 
 ## Slice 4 - Commercial tier  ⏸️
 - ⏸️ Public REST API + API keys

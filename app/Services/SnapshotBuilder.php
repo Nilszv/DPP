@@ -17,15 +17,20 @@ class SnapshotBuilder
 {
     public function build(Passport $passport, PassportVersion $version, Template $template): void
     {
-        $locale = $passport->default_locale;
+        // Field VALUES are served as the manufacturer entered them (regulated data is never
+        // machine-translated); what varies per locale is the field labels. The passport's own
+        // default_locale is always built even if the platform locale list changes later.
+        $locales = array_values(array_unique([...config('dpp.locales'), $passport->default_locale]));
 
-        foreach (config('dpp.audiences') as $audience) {
-            $rendered = $this->render($passport, $version, $template, $audience, $locale);
+        foreach ($locales as $locale) {
+            foreach (config('dpp.audiences') as $audience) {
+                $rendered = $this->render($passport, $version, $template, $audience, $locale);
 
-            PublishedSnapshot::updateOrCreate(
-                ['passport_id' => $passport->id, 'audience' => $audience, 'locale' => $locale],
-                ['rendered' => $rendered, 'etag' => CanonicalJson::hash($rendered)],
-            );
+                PublishedSnapshot::updateOrCreate(
+                    ['passport_id' => $passport->id, 'audience' => $audience, 'locale' => $locale],
+                    ['rendered' => $rendered, 'etag' => CanonicalJson::hash($rendered)],
+                );
+            }
         }
     }
 
@@ -49,7 +54,7 @@ class SnapshotBuilder
                 continue;
             }
 
-            $fields[] = ['label' => $field['label'], 'value' => $value];
+            $fields[] = ['label' => Template::fieldLabel($field, $locale), 'value' => $value];
         }
 
         return [

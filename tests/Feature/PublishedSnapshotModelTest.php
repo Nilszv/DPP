@@ -34,23 +34,25 @@ class PublishedSnapshotModelTest extends TestCase
         $passportA = $this->publishedPassport($org, 'Product A');
         $passportB = $this->publishedPassport($org, 'Product B');
 
-        $this->assertSame(10, PublishedSnapshot::count()); // 2 passports x 5 audiences
+        $this->assertSame(20, PublishedSnapshot::count()); // 2 passports x 5 audiences x 2 locales
 
         $target = PublishedSnapshot::where('passport_id', $passportA->id)->where('audience', 'consumer')->first();
         $target->etag = 'mutated-etag';
         $target->save();
 
         $this->assertSame(1, PublishedSnapshot::where('etag', 'mutated-etag')->count());
-        $this->assertSame(10, PublishedSnapshot::count());
+        $this->assertSame(20, PublishedSnapshot::count());
 
-        // Every other row (including passport A's own other audiences) must be untouched.
-        $untouched = PublishedSnapshot::where(function ($q) use ($passportA) {
-            $q->where('passport_id', '!=', $passportA->id);
-        })->orWhere(function ($q) use ($passportA) {
-            $q->where('passport_id', $passportA->id)->where('audience', '!=', 'consumer');
+        // Every row except the one mutated (same passport+audience+locale composite key) must
+        // be untouched -- including passport A's other audiences AND the other locale of the
+        // same consumer audience.
+        $untouched = PublishedSnapshot::whereNot(function ($q) use ($target) {
+            $q->where('passport_id', $target->passport_id)
+                ->where('audience', $target->audience)
+                ->where('locale', $target->locale);
         })->get();
 
-        $this->assertCount(9, $untouched);
+        $this->assertCount(19, $untouched);
         $this->assertTrue($untouched->every(fn ($s) => $s->etag !== 'mutated-etag'));
     }
 

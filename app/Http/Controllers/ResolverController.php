@@ -59,7 +59,16 @@ class ResolverController extends Controller
         // are genuinely not found to the public.
         abort_if(! $passport || ! $passport->isPublished(), 404);
 
-        $locale = $passport->default_locale;
+        // Locales actually built for this passport are the source of truth (not the platform
+        // config): a passport published before a locale was added simply doesn't offer it
+        // until its snapshots are rebuilt.
+        $available = PublishedSnapshot::where('passport_id', $passport->id)
+            ->where('audience', $audience)
+            ->orderBy('locale')
+            ->pluck('locale')
+            ->all();
+
+        $locale = $this->chooseLocale($request, $passport, $available);
 
         $snapshot = PublishedSnapshot::where('passport_id', $passport->id)
             ->where('audience', $audience)
@@ -74,12 +83,54 @@ class ResolverController extends Controller
         if ($this->wantsJsonLd($request)) {
             return response()->json($snapshot->rendered)
                 ->header('Content-Type', 'application/ld+json')
-                ->header('Cache-Control', 'public, max-age=300');
+                ->header('Cache-Control', 'public, max-age=300')
+                ->header('Vary', 'Accept, Accept-Language');
         }
 
+        app()->setLocale($locale); // page chrome (lang/{locale}/public.php)
+
         return response()
-            ->view('public.passport', ['p' => $snapshot->rendered])
-            ->header('Cache-Control', 'public, max-age=300');
+            ->view('public.passport', [
+                'p' => $snapshot->rendered,
+                'localeUrls' => count($available) > 1
+                    ? collect($available)->mapWithKeys(fn ($l) => [$l => $request->fullUrlWithQuery(['lang' => $l])])->all()
+                    : [],
+                'currentLocale' => $locale,
+            ])
+            ->header('Cache-Control', 'public, max-age=300')
+            ->header('Vary', 'Accept, Accept-Language');
+    }
+
+    /**
+     * Pick the locale to serve: an explicit ?lang= wins, then Accept-Language (buyer's
+     * browser is set to their Member-State language), then the passport's default. Only
+     * locales that actually have a snapshot row are ever chosen.
+     */
+    private function chooseLocale(Request $request, Passport $passport, array $available): string
+    {
+        $requested = strtolower((string) $request->query('lang'));
+        if ($requested !== '' && in_array($requested, $available, true)) {
+            return $requested;
+        }
+
+        // Only when the header is genuinely present (empty counts as absent): Symfony's
+        // getLanguages() otherwise fabricates the framework default ('en'), which must not
+        // outrank the passport's own default.
+        if (trim((string) $request->headers->get('Accept-Language')) !== '') {
+            foreach ($request->getLanguages() as $language) {
+                // 'en_GB' / 'en-GB' -> 'en': snapshot locales are primary subtags.
+                $primary = strtolower(substr(str_replace('_', '-', $language), 0, 2));
+                if (in_array($primary, $available, true)) {
+                    return $primary;
+                }
+            }
+        }
+
+        if (in_array($passport->default_locale, $available, true)) {
+            return $passport->default_locale;
+        }
+
+        return $available[0] ?? $passport->default_locale;
     }
 
     private function wantsJsonLd(Request $request): bool

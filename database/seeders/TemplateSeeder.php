@@ -20,14 +20,16 @@ class TemplateSeeder extends Seeder
                 'organization_id' => null,
                 'name' => 'Generic product',
                 'category' => 'generic',
+                // 'label' is the manufacturer-facing form label (and the public fallback);
+                // 'labels' localizes the PUBLIC passport page per buyer Member-State language.
                 'field_schema' => [
-                    ['key' => 'product_name', 'label' => 'Product name', 'type' => 'text', 'required' => true],
-                    ['key' => 'manufacturer', 'label' => 'Manufacturer', 'type' => 'text', 'required' => true],
-                    ['key' => 'description', 'label' => 'Description', 'type' => 'textarea', 'required' => false],
-                    ['key' => 'material_composition', 'label' => 'Material composition', 'type' => 'text', 'required' => false],
-                    ['key' => 'country_of_manufacture', 'label' => 'Country of manufacture', 'type' => 'text', 'required' => false],
-                    ['key' => 'care_instructions', 'label' => 'Care instructions', 'type' => 'textarea', 'required' => false],
-                    ['key' => 'recyclability', 'label' => 'Recyclability / end-of-life', 'type' => 'textarea', 'required' => false],
+                    ['key' => 'product_name', 'label' => 'Product name', 'labels' => ['en' => 'Product name', 'lv' => 'Produkta nosaukums'], 'type' => 'text', 'required' => true],
+                    ['key' => 'manufacturer', 'label' => 'Manufacturer', 'labels' => ['en' => 'Manufacturer', 'lv' => 'Ražotājs'], 'type' => 'text', 'required' => true],
+                    ['key' => 'description', 'label' => 'Description', 'labels' => ['en' => 'Description', 'lv' => 'Apraksts'], 'type' => 'textarea', 'required' => false],
+                    ['key' => 'material_composition', 'label' => 'Material composition', 'labels' => ['en' => 'Material composition', 'lv' => 'Materiālu sastāvs'], 'type' => 'text', 'required' => false],
+                    ['key' => 'country_of_manufacture', 'label' => 'Country of manufacture', 'labels' => ['en' => 'Country of manufacture', 'lv' => 'Ražošanas valsts'], 'type' => 'text', 'required' => false],
+                    ['key' => 'care_instructions', 'label' => 'Care instructions', 'labels' => ['en' => 'Care instructions', 'lv' => 'Kopšanas norādījumi'], 'type' => 'textarea', 'required' => false],
+                    ['key' => 'recyclability', 'label' => 'Recyclability / end-of-life', 'labels' => ['en' => 'Recyclability / end-of-life', 'lv' => 'Pārstrādājamība / aprites cikla beigas'], 'type' => 'textarea', 'required' => false],
                 ],
                 // Which audience tier sees each field in the public viewer. Slice 1 renders
                 // only the consumer audience; the rest are wired for later tiered views.

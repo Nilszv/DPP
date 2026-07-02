@@ -21,8 +21,10 @@ class TenantIsolationTest extends TestCase
     {
         parent::setUp();
 
+        // Own key: the real 'generic' template now always exists (guaranteed by the
+        // multi-locale backfill migration, so fresh databases already contain it).
         $this->template = Template::create([
-            'key' => 'generic',
+            'key' => 'tenant-isolation-test',
             'name' => 'Generic',
             'category' => 'generic',
             'field_schema' => [['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true]],
