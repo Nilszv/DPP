@@ -79,7 +79,11 @@
         <h2>QR carrier</h2>
         <p class="muted">Scannable, smartphone-readable, no app needed. SVG scales to any print size.</p>
         <img src="{{ route('passports.qr', $passport) }}" alt="QR code" width="220" height="220">
-        <p><a href="{{ route('passports.qr', $passport) }}" download="passport-qr.svg">Download QR (SVG)</a></p>
+        <p>
+            <a href="{{ route('passports.qr', $passport) }}" download="passport-qr.svg">Download QR (SVG, any print size)</a>
+            &middot;
+            <a href="{{ route('passports.qr', [$passport, 'format' => 'png']) }}" download="passport-qr.png">Download QR (PNG, 1200 px &asymp; 10 cm at 300 dpi)</a>
+        </p>
 
         <h2>Tiered access links</h2>
         <p class="muted">Share these with repairers, recyclers, or authorities. Each link shows only the fields configured for that audience.</p>

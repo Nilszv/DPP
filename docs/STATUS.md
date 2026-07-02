@@ -9,7 +9,16 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 173 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 177 tests pass.
+
+**Just landed: print-ready PNG QR export.** `php8.3-imagick` installed on the server (and
+already listed in DEPLOYMENT.md's requirements); `QrService::png()` renders via bacon-qr-code's
+Imagick backend. Same auth'd QR route with `?format=png` (+ optional `size`); the passport
+page offers both downloads ("SVG, any print size" / "PNG, 1200 px ≈ 10 cm at 300 dpi"). Size
+is clamped to 240-2400 px -- the floor keeps carriers readable, the cap (a 20 cm label at
+300 dpi) exists because a 4096 px Imagick render costs ~4 s of CPU, a cheap DoS lever on an
+authenticated route. Tenant isolation verified on the new format too. 4 tests
+(`PassportQrExportTest`), incl. actual PNG decode + dimensions.
 
 **Just landed: manual per-locale content translations.** The public-layer i18n translated
 labels/chrome only; now the field **values** themselves can be translated -- by the
@@ -199,10 +208,9 @@ plans, legal editor, user unsuspend) · CI.
 1. ~~Post-publish versioning~~ ✅ · ~~public-layer i18n~~ ✅ · ~~audit-trail browser~~ ✅ ·
    ~~manual content translations~~ ✅ (MT "suggest draft" assist deferred until an MT
    provider/API key is chosen -- owner decision).
-2. **Print-ready PNG QR export** (needs `php8.3-imagick` installed; SVG done).
-3. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
+2. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
    product owner; not actionable until then.
-4. **Real per-category templates** - blocked on the owner providing field examples.
+3. **Real per-category templates** - blocked on the owner providing field examples.
 
 **Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
 the legal role (host vs. ESPR service provider), first product category, and final domains.
@@ -269,7 +277,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ✅ **Post-publish corrections** (`PassportPublisher::publishCorrection`): editor+ opens a correction draft (new unlocked version copied from live; public page unaffected), edits it, publishes it through the same gate (required fields, suspended block, advisory lock; no quota check - published count unchanged) or discards it. Public identity never rotates (public_id / tier tokens / published_at / retention). Snapshot swap + `audit_log` row (from/to version + hashes) in one transaction. Version history table on the passport page. Verified by tests (11, `PassportCorrectionTest`).
 - ✅ Identifiers: GS1 Digital Link (`/01/{GTIN}/21/{serial}`) + fallback UUID (`/p/{uuid}`) via `Passport::resolverUrl()`
 - ✅ QR generation (SVG, vector/print-scalable) via `bacon/bacon-qr-code`
-- ⬜ Print-ready PNG export (Imagick) - SVG done, PNG later
+- ✅ Print-ready PNG export (Imagick backend, `?format=png`, 240-2400 px clamp) alongside the SVG
 
 ### Public viewer / resolver
 - ✅ Resolver route handling both URL shapes + content negotiation (HTML vs JSON-LD)

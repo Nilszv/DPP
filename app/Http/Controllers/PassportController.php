@@ -259,9 +259,20 @@ class PassportController extends Controller
             ->with('status', ucfirst($audience).' link regenerated. The old link no longer works.');
     }
 
-    public function qr(Passport $passport, QrService $qr)
+    public function qr(Request $request, Passport $passport, QrService $qr)
     {
         $this->authorize('view', $passport);
+
+        if ($request->query('format') === 'png') {
+            // Clamped, not validated-with-errors: a hand-edited size should still yield a
+            // usable carrier. 240px is the readable floor; 2400 (a 20 cm label at 300 dpi)
+            // caps Imagick render cost -- ~4s of CPU at 4096 would be a cheap DoS lever.
+            $size = max(240, min(2400, (int) $request->query('size', 1200)));
+
+            return response($qr->png($passport->resolverUrl(), $size), 200, [
+                'Content-Type' => 'image/png',
+            ]);
+        }
 
         return response($qr->svg($passport->resolverUrl()), 200, [
             'Content-Type' => 'image/svg+xml',
