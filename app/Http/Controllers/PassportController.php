@@ -79,27 +79,27 @@ class PassportController extends Controller
     public function edit(Passport $passport)
     {
         $this->authorize('update', $passport);
-        if ($passport->isPublished()) {
-            return redirect()->route('passports.show', $passport)
-                ->with('error', 'Published passports are locked. Versioned editing comes later.');
-        }
-
-        $template = $passport->product->template;
         $version = $this->workingVersion($passport);
+        if ($version->locked) {
+            return redirect()->route('passports.show', $passport)
+                ->with('error', 'Published passports are locked. Start a correction to change the data.');
+        }
 
         return view('app.passports.edit', [
             'passport' => $passport,
-            'template' => $template,
+            'template' => $passport->product->template,
             'data' => $version->data ?? [],
+            'isCorrection' => $passport->isPublished(),
         ]);
     }
 
     public function update(Request $request, Passport $passport)
     {
         $this->authorize('update', $passport);
-        if ($passport->isPublished()) {
+        $version = $this->workingVersion($passport);
+        if ($version->locked) {
             return redirect()->route('passports.show', $passport)
-                ->with('error', 'Published passports are locked.');
+                ->with('error', 'Published passports are locked. Start a correction to change the data.');
         }
 
         $template = $passport->product->template;
@@ -114,7 +114,6 @@ class PassportController extends Controller
         // Keep only known template fields (drop anything unexpected).
         $clean = array_intersect_key($request->input('fields', []), array_flip($allowedKeys));
 
-        $version = $this->workingVersion($passport);
         $version->update(['data' => $clean, 'content_hash' => CanonicalJson::hash($clean)]);
 
         return redirect()->route('passports.show', $passport)->with('status', 'Saved.');
@@ -134,7 +133,72 @@ class PassportController extends Controller
             'passport' => $passport,
             'tierLinks' => $tierLinks,
             'canRegenerateTiers' => auth()->user()->can('publish', $passport),
+            'canCorrect' => auth()->user()->can('update', $passport),
+            'openCorrection' => $passport->openCorrection(),
+            'versions' => $passport->versions()->with('creator')->orderByDesc('version_no')->get(),
         ]);
+    }
+
+    /**
+     * Open a correction draft on a published passport: a new unlocked version seeded from the
+     * live one. The public page keeps serving the current version untouched until the
+     * correction is published through the same regulated gate.
+     */
+    public function startCorrection(Passport $passport)
+    {
+        $this->authorize('update', $passport);
+        abort_unless($passport->isPublished(), 404);
+
+        if ($passport->openCorrection()) {
+            return redirect()->route('passports.edit', $passport);
+        }
+
+        DB::transaction(function () use ($passport) {
+            // Same per-org lock as the publisher: a double-click or two tabs would otherwise
+            // race to create the same version_no (the unique index would turn one into a 500).
+            DB::statement('SELECT pg_advisory_xact_lock(?, hashtext(?))', [1, $passport->organization_id]);
+
+            if ($passport->refresh()->openCorrection()) {
+                return;
+            }
+
+            $current = $passport->currentVersion;
+            $passport->versions()->create([
+                'version_no' => (int) $passport->versions()->max('version_no') + 1,
+                'data' => $current->data ?? [],
+                'content_hash' => CanonicalJson::hash($current->data ?? []),
+                'created_by' => auth()->id(),
+                'locked' => false,
+            ]);
+        });
+
+        return redirect()->route('passports.edit', $passport)
+            ->with('status', 'Correction draft created. The public page keeps serving the current version until you publish the correction.');
+    }
+
+    public function publishCorrection(Passport $passport, PassportPublisher $publisher)
+    {
+        $this->authorize('publish', $passport);
+        try {
+            $publisher->publishCorrection($passport);
+        } catch (PublishException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('passports.show', $passport)
+            ->with('status', 'Correction published. The public page now serves the corrected data.');
+    }
+
+    public function discardCorrection(Passport $passport)
+    {
+        $this->authorize('update', $passport);
+        $correction = $passport->openCorrection();
+        abort_unless($correction, 404);
+
+        $correction->delete();
+
+        return redirect()->route('passports.show', $passport)
+            ->with('status', 'Correction discarded. The published version is unchanged.');
     }
 
     public function publish(Passport $passport, PassportPublisher $publisher)

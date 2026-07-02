@@ -9,9 +9,32 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 138 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 149 tests pass.
 
-**Just landed: admin impersonation ("log in as" a user, with audit).** From an org's member
+**Just landed: post-publish corrections (versioned editing of published passports).**
+Previously a hard wall ("Published passports are locked. Versioned editing comes later.") --
+now an editor+ can open a **correction draft** on a published passport: a new unlocked
+`passport_versions` row seeded from the live version (the append-only schema was built for
+exactly this). While the draft is open, the public page keeps serving the current version
+untouched; the draft is edited with the same template-driven form. **Publishing the
+correction** goes through the same regulated gate as first publish (required-field check,
+suspended-org block, per-org advisory lock, canonical-hash + lock of the master data) --
+minus the quota check, deliberately: the passport is already on the market, the published
+count doesn't change, and an org that slipped over quota (admin plan change) must still be
+able to correct a live passport. Nothing public-facing rotates: `public_id`, tier access
+tokens, `published_at`, `retention_until` all stay -- only which version the snapshots serve
+changes (all 5 audience rows rebuilt atomically; this exercises the composite-key
+`PublishedSnapshot` save path fixed earlier, covered per-audience by the new tests). The swap
+writes an `audit_log` row (`passport.correction.published`, from/to version numbers + content
+hashes) **inside the same transaction** -- the public record can never change without its
+audit row. A correction can also be **discarded** (draft deleted, published version
+untouched). Starting a correction is double-click/two-tab safe (advisory lock + re-check;
+the `(passport_id, version_no)` unique index would otherwise turn the race into a 500). The
+passport page now shows a **version history table** (version, live/superseded/draft status,
+created by, content hash) -- a first slice of the Slice-3 "versioning UI + audit trail
+surface". 11 new tests (`PassportCorrectionTest`).
+
+**Previously landed: admin impersonation ("log in as" a user, with audit).** From an org's member
 list (`/admin/organizations/{org}`), an admin can temporarily become a regular user - e.g. to
 debug/verify their experience - with zero passwords or login codes needed. Starting one
 requires a **fresh** TOTP/recovery code re-entered immediately before every single start
@@ -107,12 +130,12 @@ abstraction (manual driver, DB-driven plans, downgrade guard + Contact sales) ·
 plans, legal editor, user unsuspend) · CI.
 
 **Best next steps (recommended in order):**
-1. **Post-publish versioning** (corrections to a published passport) - currently a hard wall:
-   `PassportController::edit`/`update` flatly refuse any edit once published, with no
-   correction path at all. Pure code, no owner decision needed.
-2. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
+1. ~~**Post-publish versioning**~~ ✅ done (see "Just landed" above).
+2. **i18n on the public layer** (LV/EN + buyer Member-State language) or **print-ready PNG
+   QR export** (Imagick; SVG done) - the remaining pure-code items needing no owner decision.
+3. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
    product owner; not actionable until then.
-3. **Real per-category templates** - blocked on the owner providing field examples.
+4. **Real per-category templates** - blocked on the owner providing field examples.
 
 **Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
 the legal role (host vs. ESPR service provider), first product category, and final domains.
@@ -176,6 +199,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ✅ Generic template seeded (`TemplateSeeder`); product created behind the passport wizard
 - ✅ DPP create + edit driven by the template field-schema (plain HTML form)
 - ✅ Draft -> Publish workflow (`PassportPublisher`): required-field gate, **server-side quota enforcement (concurrency-safe: per-org advisory lock + quota re-check inside the transaction)**, master data locked (version + canonical SHA-256 hash), retention date set. Verified by tests.
+- ✅ **Post-publish corrections** (`PassportPublisher::publishCorrection`): editor+ opens a correction draft (new unlocked version copied from live; public page unaffected), edits it, publishes it through the same gate (required fields, suspended block, advisory lock; no quota check - published count unchanged) or discards it. Public identity never rotates (public_id / tier tokens / published_at / retention). Snapshot swap + `audit_log` row (from/to version + hashes) in one transaction. Version history table on the passport page. Verified by tests (11, `PassportCorrectionTest`).
 - ✅ Identifiers: GS1 Digital Link (`/01/{GTIN}/21/{serial}`) + fallback UUID (`/p/{uuid}`) via `Passport::resolverUrl()`
 - ✅ QR generation (SVG, vector/print-scalable) via `bacon/bacon-qr-code`
 - ⬜ Print-ready PNG export (Imagick) - SVG done, PNG later
@@ -213,7 +237,7 @@ scannable QR resolve to a public passport page. **Done.**
 ## Slice 3 - Compliance depth  ⏸️
 - ✅ Tiered access views (repairer / recycler / authority) - see Public viewer / resolver above. Customs specifically is not modeled as its own audience yet.
 - ⏸️ EU Registry push + commodity code
-- ⏸️ Full versioning UI + audit trail surface
+- 🔨 Full versioning UI + audit trail surface (partial: post-publish corrections + version history table on the passport page are done; a browsable audit-trail surface is not)
 - ⏸️ Persistence/backup tier (cold archive export to object storage, 3rd-party backup copy)
 - ⏸️ i18n (LV/EN + buyer Member-State language on public layer)
 

@@ -133,6 +133,10 @@ Route::middleware(['auth', 'org.context', 'org.active', 'not.suspended', 'onboar
     Route::get('/app/passports/{passport}/edit', [PassportController::class, 'edit'])->name('passports.edit');
     Route::put('/app/passports/{passport}', [PassportController::class, 'update'])->name('passports.update');
     Route::post('/app/passports/{passport}/publish', [PassportController::class, 'publish'])->name('passports.publish');
+    // Post-publish corrections: open a draft version, publish it (swaps the public data), or discard it.
+    Route::post('/app/passports/{passport}/corrections', [PassportController::class, 'startCorrection'])->name('passports.corrections.start');
+    Route::post('/app/passports/{passport}/corrections/publish', [PassportController::class, 'publishCorrection'])->name('passports.corrections.publish');
+    Route::delete('/app/passports/{passport}/corrections', [PassportController::class, 'discardCorrection'])->name('passports.corrections.discard');
     Route::get('/app/passports/{passport}/qr', [PassportController::class, 'qr'])->name('passports.qr');
     Route::post('/app/passports/{passport}/tiers/{audience}/regenerate', [PassportController::class, 'regenerateTier'])
         ->whereIn('audience', ['repairer', 'recycler', 'authority'])->name('passports.tiers.regenerate');

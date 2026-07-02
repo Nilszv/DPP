@@ -3,7 +3,12 @@
 
 @section('content')
     <h1>Edit: {{ $passport->product->name }}</h1>
-    <p class="muted">Fields marked required must be completed before you can publish.</p>
+    @if ($isCorrection ?? false)
+        <p><strong>You are editing a correction to a published passport.</strong>
+            The public page keeps serving the current version until you publish this correction from the passport page.</p>
+    @else
+        <p class="muted">Fields marked required must be completed before you can publish.</p>
+    @endif
 
     <form method="POST" action="{{ route('passports.update', $passport) }}">
         @csrf

@@ -60,6 +60,22 @@ class Passport extends Model
     }
 
     /**
+     * The open correction draft on a published passport, if any: a version newer than the
+     * one being served publicly, not yet locked. Draft passports never have one -- their
+     * single working version is "the draft", not a correction to anything.
+     */
+    public function openCorrection(): ?PassportVersion
+    {
+        if (! $this->isPublished()) {
+            return null;
+        }
+
+        $latest = $this->versions()->orderByDesc('version_no')->first();
+
+        return $latest && ! $latest->locked ? $latest : null;
+    }
+
+    /**
      * The permanent public URL encoded into the QR carrier. GS1 Digital Link form when the
      * passport has a GTIN; opaque /p/{public_id} fallback otherwise. linkType is NEVER baked
      * into the carrier -- the resolver negotiates audience/format server-side.

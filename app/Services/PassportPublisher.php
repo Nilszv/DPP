@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\PublishException;
+use App\Models\AuditLog;
 use App\Models\Passport;
 use App\Models\PassportAccessToken;
 use App\Support\CanonicalJson;
@@ -80,6 +81,74 @@ class PassportPublisher
             foreach (['repairer', 'recycler', 'authority'] as $audience) {
                 PassportAccessToken::issue($passport, $audience);
             }
+
+            return $passport;
+        });
+    }
+
+    /**
+     * Publish an open correction on an ALREADY-published passport: the same regulated gate as
+     * publish() (required fields, suspended-org block, locked master data) minus the quota
+     * check -- the passport is already on the market, so the published count is unchanged, and
+     * an org that slipped over quota (e.g. an admin plan change) must still be able to correct
+     * a live passport. Nothing public-facing rotates: public_id, access tokens, published_at,
+     * and retention_until all stay -- only which version the snapshots serve changes.
+     *
+     * @throws PublishException
+     */
+    public function publishCorrection(Passport $passport): Passport
+    {
+        if (! $passport->isPublished()) {
+            throw new PublishException('Only a published passport can take a correction.');
+        }
+
+        if ($passport->organization->isSuspended()) {
+            throw new PublishException('This organization is suspended and cannot publish corrections.');
+        }
+
+        $template = $passport->product->template;
+
+        return DB::transaction(function () use ($passport, $template) {
+            // Same per-org lock as publish(): serializes against concurrent publishes,
+            // double-submitted corrections, and startCorrection() racing this swap.
+            DB::statement('SELECT pg_advisory_xact_lock(?, hashtext(?))', [1, $passport->organization_id]);
+
+            $passport->refresh();
+            $version = $passport->openCorrection();
+            if (! $version) {
+                throw new PublishException('There is no open correction to publish.');
+            }
+            if ($passport->organization()->value('status') === 'suspended') {
+                throw new PublishException('This organization is suspended and cannot publish corrections.');
+            }
+
+            $this->assertRequiredFieldsComplete($template->requiredFieldKeys(), $version->data ?? []);
+
+            $previous = $passport->currentVersion;
+
+            $version->update([
+                'content_hash' => CanonicalJson::hash($version->data ?? []),
+                'locked' => true,
+            ]);
+
+            $passport->update(['current_version_id' => $version->id]);
+
+            $passport->refresh();
+            $this->snapshots->build($passport, $version, $template);
+
+            // Inside the transaction: a correction that swaps the public record must never
+            // happen without its audit row, and vice versa.
+            AuditLog::record(
+                action: 'passport.correction.published',
+                target: $passport->id,
+                meta: [
+                    'from_version_no' => $previous?->version_no,
+                    'from_content_hash' => $previous?->content_hash,
+                    'to_version_no' => $version->version_no,
+                    'to_content_hash' => $version->content_hash,
+                ],
+                organizationId: $passport->organization_id,
+            );
 
             return $passport;
         });

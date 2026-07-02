@@ -30,4 +30,9 @@ class PassportVersion extends Model
     {
         return $this->belongsTo(Passport::class);
     }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }
