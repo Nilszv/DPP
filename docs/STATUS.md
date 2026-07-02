@@ -9,7 +9,17 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 161 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 166 tests pass.
+
+**Just landed: admin audit-trail browser (`/admin/audit`).** Read-only, filterable surface
+over the append-only `audit_log` (which now has real content: impersonation starts/stops and
+correction publishes). Filters: action (from the distinct list), actor (partial name/email),
+organization, date range (garbage dates ignored, never a query error). Always paginated (50) --
+the table is month-partitioned and grows forever, nothing may load it unbounded. New indexes
+`(action, ts DESC)` + `(actor_id, ts DESC)` on the partitioned parent back the filters
+(propagate to all partitions incl. future `partitions:ensure` ones). Deleted actors render as
+"system / deleted user" rather than breaking the page. Finishes the audit-surface half of the
+Slice-3 item the version-history table started. 5 tests (`AdminAuditTrailTest`).
 
 **Just landed: public-layer i18n (LV/EN, extensible per buyer Member-State language).**
 Snapshot rows are now pre-built per **locale x audience** at publish/correction time
@@ -160,13 +170,15 @@ abstraction (manual driver, DB-driven plans, downgrade guard + Contact sales) ·
 plans, legal editor, user unsuspend) · CI.
 
 **Best next steps (recommended in order):**
-1. ~~**Post-publish versioning**~~ ✅ done. ~~**i18n on the public layer**~~ ✅ done.
-2. **Admin audit-trail surface** (browse/filter `audit_log`, which now has real content:
-   impersonations + correction publishes) or **print-ready PNG QR export** (needs
-   `php8.3-imagick` installed; SVG done) - remaining pure-code items, no owner decision.
-3. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
+1. ~~Post-publish versioning~~ ✅ · ~~public-layer i18n~~ ✅ · ~~audit-trail browser~~ ✅.
+2. **Manual content translations** (decided 2026-07-02): per-locale field VALUES entered by
+   the manufacturer in the passport form (base `data` + `translations` map on the version,
+   fallback to as-entered); a machine-translation "suggest draft" assist may come later once
+   an MT provider/API key is chosen. Regulated values are never auto-published untranslated.
+3. **Print-ready PNG QR export** (needs `php8.3-imagick` installed; SVG done).
+4. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
    product owner; not actionable until then.
-4. **Real per-category templates** - blocked on the owner providing field examples.
+5. **Real per-category templates** - blocked on the owner providing field examples.
 
 **Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
 the legal role (host vs. ESPR service provider), first product category, and final domains.
@@ -268,7 +280,7 @@ scannable QR resolve to a public passport page. **Done.**
 ## Slice 3 - Compliance depth  ⏸️
 - ✅ Tiered access views (repairer / recycler / authority) - see Public viewer / resolver above. Customs specifically is not modeled as its own audience yet.
 - ⏸️ EU Registry push + commodity code
-- 🔨 Full versioning UI + audit trail surface (partial: post-publish corrections + version history table on the passport page are done; a browsable audit-trail surface is not)
+- ✅ Full versioning UI + audit trail surface (post-publish corrections + version history table on the passport page; filterable admin audit-trail browser at `/admin/audit`)
 - ⏸️ Persistence/backup tier (cold archive export to object storage, 3rd-party backup copy)
 - ✅ i18n on the **public layer** (LV/EN, per-locale snapshots + resolver language negotiation + translated chrome/labels; adding a Member-State language is config + lang file + label translations + snapshot rebuild). The authenticated app UI (`/app`, `/admin`) remains English-only for now.
 

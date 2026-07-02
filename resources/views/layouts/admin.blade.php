@@ -16,6 +16,7 @@
             <a href="{{ route('admin.passports.index') }}">QR codes</a>
             <a href="{{ route('admin.plans.index') }}">Plans</a>
             <a href="{{ route('admin.legal.index') }}">Legal</a>
+            <a href="{{ route('admin.audit.index') }}">Audit</a>
             <a href="{{ route('admin.security.show') }}">Security</a>
             <a href="{{ route('dashboard') }}">Back to app</a>
             <form method="POST" action="{{ route('logout') }}">

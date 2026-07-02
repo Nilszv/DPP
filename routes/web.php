@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminLegalController;
 use App\Http\Controllers\Admin\AdminPassportController;
 use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Admin\AdminTwoFactorController;
+use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\ImpersonationController;
 use App\Http\Controllers\Auth\PasswordlessController;
 use App\Http\Controllers\Auth\TwoFactorController;
@@ -167,6 +168,9 @@ Route::middleware(['auth', 'admin', 'admin.2fa'])->prefix('admin')->name('admin.
 
     Route::get('/passports', [AdminPassportController::class, 'index'])->name('passports.index');
     Route::get('/passports/{passport}/qr', [AdminPassportController::class, 'qr'])->name('passports.qr');
+
+    // Read-only audit-trail browser (impersonations, correction publishes, ...).
+    Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
 
     Route::get('/legal', [AdminLegalController::class, 'index'])->name('legal.index');
     Route::get('/legal/{document}/edit', [AdminLegalController::class, 'edit'])->name('legal.edit');
