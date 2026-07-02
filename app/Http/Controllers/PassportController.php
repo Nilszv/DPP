@@ -192,13 +192,26 @@ class PassportController extends Controller
     public function discardCorrection(Passport $passport)
     {
         $this->authorize('update', $passport);
-        $correction = $passport->openCorrection();
-        abort_unless($correction, 404);
+        abort_unless($passport->openCorrection(), 404);
 
-        $correction->delete();
+        $discarded = DB::transaction(function () use ($passport) {
+            // Same per-org lock as publishCorrection(): without it, a concurrent publish can
+            // lock + swap this version live between our check and the delete, and the delete
+            // would then remove the version current_version_id points at.
+            DB::statement('SELECT pg_advisory_xact_lock(?, hashtext(?))', [1, $passport->organization_id]);
 
-        return redirect()->route('passports.show', $passport)
-            ->with('status', 'Correction discarded. The published version is unchanged.');
+            // Re-read under the lock; null here means a concurrent publish already won.
+            $correction = $passport->refresh()->openCorrection();
+            $correction?->delete();
+
+            return $correction !== null;
+        });
+
+        return $discarded
+            ? redirect()->route('passports.show', $passport)
+                ->with('status', 'Correction discarded. The published version is unchanged.')
+            : redirect()->route('passports.show', $passport)
+                ->with('error', 'This correction had already been published, so there was nothing to discard.');
     }
 
     public function publish(Passport $passport, PassportPublisher $publisher)

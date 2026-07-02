@@ -9,7 +9,7 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 149 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 152 tests pass.
 
 **Just landed: post-publish corrections (versioned editing of published passports).**
 Previously a hard wall ("Published passports are locked. Versioned editing comes later.") --
@@ -32,7 +32,16 @@ untouched). Starting a correction is double-click/two-tab safe (advisory lock + 
 the `(passport_id, version_no)` unique index would otherwise turn the race into a 500). The
 passport page now shows a **version history table** (version, live/superseded/draft status,
 created by, content hash) -- a first slice of the Slice-3 "versioning UI + audit trail
-surface". 11 new tests (`PassportCorrectionTest`).
+surface". 14 tests (`PassportCorrectionTest`). (2026-07-02, external review P1 fix: discard
+originally deleted the draft *without* the per-org advisory lock, so a concurrent
+publish-correction could lock + swap that same version live between discard's check and its
+delete -- leaving `current_version_id` pointing at a deleted row, which no FK prevented.
+Discard now takes the same lock and re-reads the open correction inside the transaction
+(null = a concurrent publish won), and `passports.current_version_id` gained a **RESTRICT
+FK** as a DB-level backstop: nothing legitimate ever deletes a live version, so if that
+constraint fires it caught a bug. Whole-passport deletion still cascades - the head row goes
+first, so its versions are unreferenced by the time the cascade reaches them; covered by
+tests.)
 
 **Previously landed: admin impersonation ("log in as" a user, with audit).** From an org's member
 list (`/admin/organizations/{org}`), an admin can temporarily become a regular user - e.g. to

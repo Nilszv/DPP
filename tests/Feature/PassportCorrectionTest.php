@@ -6,11 +6,13 @@ use App\Exceptions\PublishException;
 use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\Passport;
+use App\Models\PassportVersion;
 use App\Models\Product;
 use App\Models\Template;
 use App\Models\User;
 use App\Services\PassportPublisher;
 use Database\Seeders\TemplateSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -238,6 +240,48 @@ class PassportCorrectionTest extends TestCase
         }
 
         $this->assertSame(1, $passport->fresh()->currentVersion->version_no);
+    }
+
+    public function test_discard_after_the_correction_was_published_is_refused(): void
+    {
+        $passport = $this->publishedPassport(['product_name' => 'Cotton Tee', 'manufacturer' => 'Acme']);
+        $this->actingAs($this->user)->post(route('passports.corrections.start', $passport));
+        $this->put(route('passports.update', $passport), [
+            'fields' => ['product_name' => 'Cotton Tee', 'manufacturer' => 'Corrected'],
+        ]);
+        $this->post(route('passports.corrections.publish', $passport));
+
+        // The draft this discard targets is now the LIVE version; deleting it must not happen.
+        $this->delete(route('passports.corrections.discard', $passport))->assertNotFound();
+
+        $passport->refresh();
+        $this->assertSame(2, $passport->versions()->count());
+        $this->assertSame('Corrected', $passport->currentVersion->data['manufacturer']);
+    }
+
+    public function test_the_live_version_cannot_be_deleted_at_the_database_level(): void
+    {
+        // Backstop for the publish/discard race: even if every application-level guard is
+        // bypassed, the FK on current_version_id refuses to orphan a published passport.
+        $passport = $this->publishedPassport(['product_name' => 'Cotton Tee', 'manufacturer' => 'Acme']);
+
+        $this->expectException(QueryException::class);
+        $passport->currentVersion->delete();
+    }
+
+    public function test_deleting_a_whole_passport_still_cascades_its_versions(): void
+    {
+        // The restrict FK must not break head-row deletion (e.g. the admin delete-user tool
+        // removing a sole-member org's draft passports): the passport row goes first, so the
+        // passport_id cascade reaches versions that nothing references anymore.
+        $published = $this->publishedPassport(['product_name' => 'Cotton Tee', 'manufacturer' => 'Acme']);
+        $draft = $this->draftPassport($this->org, ['product_name' => 'Draft', 'manufacturer' => 'Acme']);
+
+        $draft->delete();
+        $published->delete();
+
+        $this->assertSame(0, Passport::count());
+        $this->assertSame(0, PassportVersion::count());
     }
 
     private function publishedPassport(array $data): Passport
