@@ -15,6 +15,7 @@
             <a href="{{ route('team.index') }}">Team</a>
             <a href="{{ route('organization.show') }}">Company</a>
             <a href="{{ route('billing.index') }}">Plan</a>
+            <a href="{{ route('privacy.show') }}">Privacy</a>
             @if (auth()->user()?->isAdmin())
                 <a href="{{ route('admin.overview') }}">Admin</a>
             @endif

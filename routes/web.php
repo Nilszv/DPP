@@ -16,6 +16,7 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PassportController;
+use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ResolverController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
@@ -101,6 +102,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/app/support', [SupportController::class, 'show'])->name('support.show');
     Route::post('/app/support', [SupportController::class, 'send'])
         ->middleware('throttle:5,1')->name('support.send');
+});
+
+// GDPR self-service (export + erasure). Plain 'auth' only: a suspended or half-onboarded
+// user has exactly the same data rights, so no org/onboarding/active gates apply here.
+Route::middleware('auth')->group(function () {
+    Route::get('/app/privacy', [PrivacyController::class, 'show'])->name('privacy.show');
+    Route::get('/app/privacy/export', [PrivacyController::class, 'export'])
+        ->middleware('throttle:6,1')->name('privacy.export');
+    Route::delete('/app/privacy', [PrivacyController::class, 'erase'])
+        ->middleware('throttle:3,1')->name('privacy.erase');
 });
 
 // First-run onboarding (reachable before the org is onboarded; not behind 'onboarded').

@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\Passport;
 use App\Models\Plan;
 use App\Models\User;
+use App\Services\AccountEraser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -143,36 +144,20 @@ class AdminController extends Controller
      * org that has published passports -- published DPPs carry a permanent public resolver link
      * (GS1 / /p/{uuid}), so this tool must never be able to break one.
      */
-    public function deleteUser(User $user)
+    public function deleteUser(User $user, AccountEraser $eraser)
     {
         if (auth()->id() === $user->id) {
             return back()->with('error', 'You cannot delete your own account.');
         }
 
-        $orgs = $user->organizations()->withCount('members')->get();
-
-        foreach ($orgs as $org) {
-            $isSoleOwner = $org->pivot->role === 'owner'
-                && $org->members()->wherePivot('role', 'owner')->count() === 1;
-
-            if ($org->members_count > 1 && $isSoleOwner) {
-                return back()->with('error', "Cannot delete: sole owner of \"{$org->name}\", which has other members. Reassign ownership first.");
-            }
-
-            if ($org->members_count === 1 && $org->publishedCount() > 0) {
-                return back()->with('error', "Cannot delete: \"{$org->name}\" has published passports with permanent public links. Those cannot be deleted with the org; resolve them first.");
-            }
+        if ($blocker = $eraser->blocker($user)) {
+            return back()->with('error', "Cannot delete: {$blocker}");
         }
 
-        DB::transaction(function () use ($user, $orgs) {
-            foreach ($orgs as $org) {
-                if ($org->members_count === 1) {
-                    $org->delete();
-                }
-            }
-
-            $user->delete();
-        });
+        // Shared GDPR eraser (the same one behind self-service /app/privacy): also scrubs
+        // login codes, invitations, sessions, and audit metadata keyed to the email -- the
+        // earlier version of this tool removed only the user row + sole-member orgs.
+        $eraser->erase($user, initiatedBy: 'admin', actorId: auth()->id());
 
         return redirect()->route('admin.organizations')->with('status', "Deleted user {$user->email}.");
     }

@@ -9,7 +9,26 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 177 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 185 tests pass.
+
+**Just landed: GDPR self-service (export + erasure) at `/app/privacy`.** Behind plain `auth`
+only -- a suspended or half-onboarded user has exactly the same data rights, so none of the
+org/onboarding/active gates apply (same pattern as `/app/support`; standalone page, no
+org-context nav). **Export** (Art. 15/20): JSON download of everything held about the person
+-- profile, memberships+roles, legal acceptances, invitations sent/received, their own audit
+entries -- audited as `gdpr.export`. **Erasure** (Art. 17): type-your-email confirmation, then
+`App\Services\AccountEraser` (shared with the admin delete-user tool, which now scrubs too --
+previously it removed only the user row + sole-member orgs) deletes the user, sole-member
+unpublished orgs, login codes + invitations keyed by EMAIL (no FK reaches those), database
+sessions, and redacts the email inside `audit_log` meta under whatever key it hides
+(jsonb scrub; the EVENTS stay -- Art. 17(3)(b) legal-obligation carve-out -- only identifiers
+go). The erasure itself is audited (`gdpr.erasure`, initiated_by self|admin, deliberately
+without the email). Legal-acceptance evidence has no user FK, so it survives for its 10-year
+duty wherever the org survives. **Blockers** route to manual handling (GDPR permits it): sole
+owner of an org with other members (reassign first), or a sole-member org with published
+passports (permanent public record; contact support). An impersonation session can never
+erase the account (would make impersonation an unaudited erasure lever). 8 tests
+(`GdprPrivacyTest`). Still owner-side: the DPA document itself (legal text, not code).
 
 **Just landed: print-ready PNG QR export.** `php8.3-imagick` installed on the server (and
 already listed in DEPLOYMENT.md's requirements); `QrService::png()` renders via bacon-qr-code's
@@ -330,7 +349,7 @@ scannable QR resolve to a public passport page. **Done.**
 - ⏸️ WordPress public marketing site at `/`, platform mounted at `/login` + `/app` + `/p`
 - ✅ Transactional email (SMTP configured and verified) - currently sends synchronously; move to queued in prod
 - ✅ **Automated test suite** + Postgres test database + GitHub Actions CI (done in the code-review remediation above). Expand coverage as features land.
-- ⏸️ GDPR: DPA, export, erasure path for lifecycle personal data
+- 🔨 GDPR: **export + erasure done** (self-service `/app/privacy` + shared `AccountEraser` behind the admin tool); the DPA document itself is legal text still owed by the owner
 - ⏸️ Legal role decision: generic host vs. ESPR "DPP service provider"
 
 ---
