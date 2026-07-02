@@ -9,7 +9,25 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 166 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 171 tests pass.
+
+**Just landed: manual per-locale content translations.** The public-layer i18n translated
+labels/chrome only; now the field **values** themselves can be translated -- by the
+manufacturer, never by machine (decided 2026-07-02; an MT "suggest a draft for human review"
+assist may come later once a provider/API key is chosen). The passport form gains a
+"Translations -- EN" section per non-default public locale (base-language fields double as
+placeholders); a blank input means "serve the original", so partially-translated passports
+degrade gracefully per field. Stored as a `translations` JSONB map (`{locale: {key: value}}`)
+on `passport_versions` -- part of the locked, versioned record, copied into correction drafts,
+editable there, swapped atomically on correction publish like everything else. Unknown
+locales/fields are dropped server-side; blanks are never stored. A translation can never
+conjure a field whose BASE value is empty (no one-locale-only content). `content_hash`
+deliberately keeps covering only the base `data`: the source-language record is the legally
+binding master; translations are supplementary renderings (each snapshot carries its own
+etag). Pre-existing versions have `translations = null`, which is exactly the old behavior --
+no backfill needed. 5 tests (`PassportContentTranslationTest`). Also fixed this session's
+review P2: audit-page date filters now reject impossible calendar dates (2026-02-31) via
+`checkdate()`, not just shape-checking.
 
 **Just landed: admin audit-trail browser (`/admin/audit`).** Read-only, filterable surface
 over the append-only `audit_log` (which now has real content: impersonation starts/stops and
@@ -170,15 +188,13 @@ abstraction (manual driver, DB-driven plans, downgrade guard + Contact sales) ·
 plans, legal editor, user unsuspend) · CI.
 
 **Best next steps (recommended in order):**
-1. ~~Post-publish versioning~~ ✅ · ~~public-layer i18n~~ ✅ · ~~audit-trail browser~~ ✅.
-2. **Manual content translations** (decided 2026-07-02): per-locale field VALUES entered by
-   the manufacturer in the passport form (base `data` + `translations` map on the version,
-   fallback to as-entered); a machine-translation "suggest draft" assist may come later once
-   an MT provider/API key is chosen. Regulated values are never auto-published untranslated.
-3. **Print-ready PNG QR export** (needs `php8.3-imagick` installed; SVG done).
-4. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
+1. ~~Post-publish versioning~~ ✅ · ~~public-layer i18n~~ ✅ · ~~audit-trail browser~~ ✅ ·
+   ~~manual content translations~~ ✅ (MT "suggest draft" assist deferred until an MT
+   provider/API key is chosen -- owner decision).
+2. **Print-ready PNG QR export** (needs `php8.3-imagick` installed; SVG done).
+3. **Stripe billing** - blocked on a Stripe account + the lapse-policy decision from the
    product owner; not actionable until then.
-5. **Real per-category templates** - blocked on the owner providing field examples.
+4. **Real per-category templates** - blocked on the owner providing field examples.
 
 **Decisions still owed by the product owner** (bottom of this file): the full lapse policy,
 the legal role (host vs. ESPR service provider), first product category, and final domains.

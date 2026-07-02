@@ -17,14 +17,30 @@ class PassportVersion extends Model
     public const UPDATED_AT = null;   // append-only: created_at only
 
     protected $fillable = [
-        'passport_id', 'version_no', 'data', 'content_hash', 'created_by', 'locked',
+        'passport_id', 'version_no', 'data', 'translations', 'content_hash', 'created_by', 'locked',
     ];
 
     protected $casts = [
         'data' => 'array',
+        'translations' => 'array',
         'locked' => 'boolean',
         'created_at' => 'datetime',
     ];
+
+    /**
+     * The value to serve for a field in a locale: the manufacturer's own translation when one
+     * exists, otherwise the as-entered base value. content_hash intentionally keeps covering
+     * only `data` -- the source-language record is the legally binding master; translations
+     * are supplementary renderings of it (each snapshot still carries its own etag).
+     */
+    public function valueFor(string $key, string $locale): ?string
+    {
+        $translated = $this->translations[$locale][$key] ?? null;
+
+        return ($translated !== null && trim((string) $translated) !== '')
+            ? $translated
+            : ($this->data[$key] ?? null);
+    }
 
     public function passport(): BelongsTo
     {

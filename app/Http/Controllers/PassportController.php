@@ -89,6 +89,8 @@ class PassportController extends Controller
             'passport' => $passport,
             'template' => $passport->product->template,
             'data' => $version->data ?? [],
+            'translations' => $version->translations ?? [],
+            'translationLocales' => $this->translationLocales($passport),
             'isCorrection' => $passport->isPublished(),
         ]);
     }
@@ -108,13 +110,31 @@ class PassportController extends Controller
         $rules = [];
         foreach ($allowedKeys as $key) {
             $rules['fields.'.$key] = ['nullable', 'string', 'max:5000'];
+            foreach ($this->translationLocales($passport) as $locale) {
+                $rules["translations.{$locale}.{$key}"] = ['nullable', 'string', 'max:5000'];
+            }
         }
         $request->validate($rules);
 
         // Keep only known template fields (drop anything unexpected).
         $clean = array_intersect_key($request->input('fields', []), array_flip($allowedKeys));
 
-        $version->update(['data' => $clean, 'content_hash' => CanonicalJson::hash($clean)]);
+        // Translations: only configured locales x known fields, and only non-blank values --
+        // a blank input means "fall back to the original", not "store an empty string".
+        $translations = [];
+        foreach ($this->translationLocales($passport) as $locale) {
+            $values = array_intersect_key($request->input("translations.{$locale}", []), array_flip($allowedKeys));
+            $values = array_filter($values, fn ($v) => trim((string) $v) !== '');
+            if ($values) {
+                $translations[$locale] = $values;
+            }
+        }
+
+        $version->update([
+            'data' => $clean,
+            'translations' => $translations ?: null,
+            'content_hash' => CanonicalJson::hash($clean),
+        ]);
 
         return redirect()->route('passports.show', $passport)->with('status', 'Saved.');
     }
@@ -166,6 +186,7 @@ class PassportController extends Controller
             $passport->versions()->create([
                 'version_no' => (int) $passport->versions()->max('version_no') + 1,
                 'data' => $current->data ?? [],
+                'translations' => $current->translations,
                 'content_hash' => CanonicalJson::hash($current->data ?? []),
                 'created_by' => auth()->id(),
                 'locked' => false,
@@ -263,5 +284,14 @@ class PassportController extends Controller
     private function workingVersion(Passport $passport)
     {
         return $passport->versions()->orderByDesc('version_no')->first();
+    }
+
+    /**
+     * Public locales the manufacturer can translate values INTO: everything configured except
+     * the passport's own default (that language is what the base fields already hold).
+     */
+    private function translationLocales(Passport $passport): array
+    {
+        return array_values(array_diff(config('dpp.locales'), [$passport->default_locale]));
     }
 }

@@ -42,9 +42,10 @@ class SnapshotBuilder
         $fields = [];
         foreach ($template->field_schema as $field) {
             $key = $field['key'];
-            $value = $data[$key] ?? null;
 
-            if ($value === null || $value === '') {
+            // A field exists on the page iff the BASE value is filled -- a translation of an
+            // empty field is meaningless and must not conjure content in one locale only.
+            if (($data[$key] ?? '') === '' || $data[$key] === null) {
                 continue;
             }
 
@@ -54,11 +55,14 @@ class SnapshotBuilder
                 continue;
             }
 
-            $fields[] = ['label' => Template::fieldLabel($field, $locale), 'value' => $value];
+            $fields[] = [
+                'label' => Template::fieldLabel($field, $locale),
+                'value' => $version->valueFor($key, $locale),
+            ];
         }
 
         return [
-            'title' => $data['product_name'] ?? $passport->product->name,
+            'title' => $version->valueFor('product_name', $locale) ?? $passport->product->name,
             'audience' => $audience,
             'locale' => $locale,
             'status' => $passport->status,
