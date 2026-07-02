@@ -78,6 +78,11 @@ class AdminAuditTrailTest extends TestCase
 
         // garbage dates are ignored, not a query error
         $this->get(route('admin.audit.index', ['from' => 'not-a-date', 'to' => "1'; DROP--"]))->assertOk();
+
+        // correctly-shaped but impossible calendar dates too (P2 review finding): these pass
+        // a bare format regex and would otherwise reach Postgres / Carbon::parse().
+        $this->get(route('admin.audit.index', ['from' => '2026-99-99', 'to' => '2026-02-31']))
+            ->assertOk()->assertSee('row-of-bob');
     }
 
     public function test_entries_are_paginated(): void

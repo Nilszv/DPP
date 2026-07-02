@@ -61,6 +61,12 @@ class AuditLogController extends Controller
     /** A valid Y-m-d date string or null -- garbage input must not become a query error. */
     private function date(?string $value): ?string
     {
-        return ($value && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) ? $value : null;
+        if (! $value || ! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m)) {
+            return null;
+        }
+
+        // The shape alone lets 2026-99-99 / 2026-02-31 through to Postgres/Carbon (P2 review
+        // finding): it must also be a real calendar day.
+        return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $value : null;
     }
 }
