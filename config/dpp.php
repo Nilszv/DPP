@@ -7,8 +7,10 @@ return [
      */
     'passport_base_url' => env('PASSPORT_BASE_URL', env('APP_URL', 'http://localhost:8000')),
 
-    /* Default Member-State language for the public passport layer. */
-    'default_locale' => env('PASSPORT_DEFAULT_LOCALE', 'lv'),
+    /* Default Member-State language for the public passport layer. Lowercased: locale codes
+     | are compared verbatim against snapshot rows and lowercased resolver requests, so an
+     | uppercase env value ('LV') would silently build rows no request ever matches. */
+    'default_locale' => strtolower(trim((string) env('PASSPORT_DEFAULT_LOCALE', 'lv'))),
 
     /*
      | Locales the public layer serves: snapshot rows are pre-built per locale x audience at
@@ -18,10 +20,10 @@ return [
      | translations, then rebuild snapshots. A passport's own default_locale is always built
      | even if it is missing from this list.
      */
-    'locales' => array_filter(array_map(
-        'trim',
+    'locales' => array_values(array_filter(array_map(
+        fn ($locale) => strtolower(trim($locale)),
         explode(',', (string) env('PASSPORT_LOCALES', 'lv,en'))
-    )),
+    ))),
 
     /* Keyed HMAC secret for hashing scanner IPs (GDPR). Rotating it is intentional. */
     'scan_ip_hmac_key' => env('SCAN_IP_HMAC_KEY', env('APP_KEY', '')),
