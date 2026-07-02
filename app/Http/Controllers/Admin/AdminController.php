@@ -159,6 +159,8 @@ class AdminController extends Controller
         // earlier version of this tool removed only the user row + sole-member orgs.
         $eraser->erase($user, initiatedBy: 'admin', actorId: auth()->id());
 
-        return redirect()->route('admin.organizations')->with('status', "Deleted user {$user->email}.");
+        // Deliberately generic: flashing the erased email would re-collect it straight into
+        // the admin's session row moments after the eraser scrubbed it (review P2).
+        return redirect()->route('admin.organizations')->with('status', 'User account deleted and personal data scrubbed.');
     }
 }

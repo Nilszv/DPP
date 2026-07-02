@@ -75,16 +75,15 @@ class AccountEraser
             DB::table('invitations')->where('invited_by', $user->id)->update(['invited_by' => null]);
 
             // Redact this email wherever it was denormalized into audit metadata (e.g.
-            // impersonation rows record target_email/admin_email), under WHATEVER key it
-            // hides. The events themselves stay -- only the identifier is scrubbed.
+            // impersonation rows record target_email/admin_email). Text-level replace on the
+            // jsonb so it reaches ANY depth/shape -- nested objects, arrays, and substrings
+            // inside longer values -- not just top-level exact matches (review P2). Safe on
+            // the JSON encoding: platform emails are validated ASCII, never JSON-escaped.
             DB::statement(<<<'SQL'
                 UPDATE audit_log
-                SET meta = (
-                    SELECT jsonb_object_agg(key, CASE WHEN value = to_jsonb(?::text) THEN '"[erased]"'::jsonb ELSE value END)
-                    FROM jsonb_each(meta)
-                )
+                SET meta = replace(meta::text, ?, '[erased]')::jsonb
                 WHERE meta IS NOT NULL
-                  AND EXISTS (SELECT 1 FROM jsonb_each(meta) WHERE value = to_jsonb(?::text))
+                  AND strpos(meta::text, ?) > 0
             SQL, [$user->email, $user->email]);
 
             // Active database sessions for the account.

@@ -9,7 +9,7 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 185 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 186 tests pass.
 
 **Just landed: GDPR self-service (export + erasure) at `/app/privacy`.** Behind plain `auth`
 only -- a suspended or half-onboarded user has exactly the same data rights, so none of the
@@ -27,8 +27,13 @@ without the email). Legal-acceptance evidence has no user FK, so it survives for
 duty wherever the org survives. **Blockers** route to manual handling (GDPR permits it): sole
 owner of an org with other members (reassign first), or a sole-member org with published
 passports (permanent public record; contact support). An impersonation session can never
-erase the account (would make impersonation an unaudited erasure lever). 8 tests
+erase the account (would make impersonation an unaudited erasure lever). 9 tests
 (`GdprPrivacyTest`). Still owner-side: the DPA document itself (legal text, not code).
+(2026-07-02 review fixes: export also lists rows where the user is the SUBJECT -- e.g.
+impersonations of them -- disclosing only action + timestamp, since meta/actor would expose
+third parties (Art. 15(4) balance); the audit-meta scrub became a text-level jsonb replace
+reaching any nested/array/substring shape, not just top-level exact values; and the admin
+delete flash is now generic instead of re-collecting the just-erased email into the session.)
 
 **Just landed: print-ready PNG QR export.** `php8.3-imagick` installed on the server (and
 already listed in DEPLOYMENT.md's requirements); `QrService::png()` renders via bacon-qr-code's

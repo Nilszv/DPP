@@ -58,6 +58,17 @@ class PrivacyController extends Controller
                 ->get(['email', 'role', 'created_at', 'accepted_at']),
             'audit_entries_as_actor' => DB::table('audit_log')->where('actor_id', $user->id)
                 ->orderByDesc('ts')->limit(1000)->get(['action', 'target', 'ts']),
+            // Rows where this person is the SUBJECT (e.g. an admin impersonated them): also
+            // their personal data under Art. 15. Only action + timestamp are disclosed --
+            // meta and actor would expose third parties (like the acting admin's identity),
+            // which Art. 15(4) requires balancing away.
+            'audit_entries_about_you' => DB::table('audit_log')
+                ->where(function ($q) use ($user) {
+                    $q->where('target', $user->id)
+                        ->orWhereRaw('strpos(meta::text, ?) > 0', [$user->email]);
+                })
+                ->where(fn ($q) => $q->whereNull('actor_id')->orWhere('actor_id', '!=', $user->id))
+                ->orderByDesc('ts')->limit(1000)->get(['action', 'ts']),
         ];
 
         return response()->json($export, 200, [

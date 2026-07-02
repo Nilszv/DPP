@@ -62,6 +62,29 @@ class GdprPrivacyTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'gdpr.export')->where('actor_id', $user->id)->count());
     }
 
+    public function test_export_includes_entries_about_the_user_without_exposing_third_parties(): void
+    {
+        $user = $this->userInOrg();
+        $admin = User::create(['name' => 'Admin', 'email' => 'the.admin@example.com', 'email_verified_at' => now()]);
+
+        // The user as SUBJECT: an admin impersonated them (actor = admin, target = user).
+        AuditLog::record('impersonation.started', $user->id,
+            ['target_email' => $user->email, 'admin_email' => $admin->email], $admin->id);
+        // Matched via meta email only (target holds something else).
+        AuditLog::record('user.unsuspended', 'case-42', ['target_email' => $user->email], $admin->id);
+        // Someone ELSE's row: must not leak into this user's export.
+        AuditLog::record('impersonation.started', $admin->id, ['target_email' => 'someone.else@example.com'], $admin->id);
+
+        $json = $this->actingAs($user)->get(route('privacy.export'))->json();
+
+        $about = collect($json['audit_entries_about_you']);
+        $this->assertSame(['impersonation.started', 'user.unsuspended'], $about->pluck('action')->sort()->values()->all());
+        // Only action + ts are disclosed: no meta, no actor -- the acting admin's identity
+        // is third-party data (Art. 15(4) balance).
+        $this->assertStringNotContainsString('the.admin@example.com', json_encode($json['audit_entries_about_you']));
+        $this->assertStringNotContainsString('someone.else@example.com', json_encode($json));
+    }
+
     public function test_self_erasure_deletes_the_account_and_scrubs_personal_data_everywhere(): void
     {
         $user = $this->userInOrg('Solo SIA'); // sole member, nothing published
@@ -78,6 +101,11 @@ class GdprPrivacyTest extends TestCase
         ]);
         // The email denormalized into audit meta (as impersonation rows do).
         AuditLog::record('impersonation.started', $user->id, ['target_email' => $email, 'admin_email' => 'admin@example.com']);
+        // And hidden in nested/array/substring shapes a future action might write.
+        AuditLog::record('nested.shape', $user->id, [
+            'details' => ['emails' => [$email], 'other' => 'kept'],
+            'note' => "sent to {$email} yesterday",
+        ]);
 
         $this->actingAs($user)
             ->delete(route('privacy.erase'), ['confirm_email' => strtoupper(" {$email} ")])
@@ -93,6 +121,14 @@ class GdprPrivacyTest extends TestCase
         $scrubbed = AuditLog::where('action', 'impersonation.started')->first();
         $this->assertSame('[erased]', $scrubbed->meta['target_email']);
         $this->assertSame('admin@example.com', $scrubbed->meta['admin_email']);
+
+        // Scrub reaches ANY meta shape (review P2): nested objects, arrays, and the email
+        // embedded inside a longer string -- not just top-level exact values.
+        $nested = AuditLog::where('action', 'nested.shape')->first();
+        $this->assertStringNotContainsString($email, json_encode($nested->meta));
+        $this->assertSame('[erased]', $nested->meta['details']['emails'][0]);
+        $this->assertSame('sent to [erased] yesterday', $nested->meta['note']);
+        $this->assertSame('kept', $nested->meta['details']['other']);
 
         $erasure = AuditLog::where('action', 'gdpr.erasure')->first();
         $this->assertNotNull($erasure);
@@ -178,6 +214,10 @@ class GdprPrivacyTest extends TestCase
         $this->actingAsAdmin($admin)
             ->delete(route('admin.users.delete', $user))
             ->assertRedirect(route('admin.organizations'));
+
+        // The success flash must not re-collect the just-erased email into the admin's
+        // session row (review P2).
+        $this->assertStringNotContainsString($email, (string) session('status'));
 
         $this->assertNull(User::where('email', $email)->first());
         $this->assertSame(0, DB::table('login_codes')->where('email', $email)->count());
