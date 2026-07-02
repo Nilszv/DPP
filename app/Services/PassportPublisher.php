@@ -137,15 +137,19 @@ class PassportPublisher
             $this->snapshots->build($passport, $version, $template);
 
             // Inside the transaction: a correction that swaps the public record must never
-            // happen without its audit row, and vice versa.
+            // happen without its audit row, and vice versa. Translations get their own hash
+            // pair: content_hash covers only the base data, so a translation-only correction
+            // would otherwise be indistinguishable from a no-op in this row.
             AuditLog::record(
                 action: 'passport.correction.published',
                 target: $passport->id,
                 meta: [
                     'from_version_no' => $previous?->version_no,
                     'from_content_hash' => $previous?->content_hash,
+                    'from_translations_hash' => CanonicalJson::hash($previous?->translations ?? []),
                     'to_version_no' => $version->version_no,
                     'to_content_hash' => $version->content_hash,
+                    'to_translations_hash' => CanonicalJson::hash($version->translations ?? []),
                 ],
                 organizationId: $passport->organization_id,
             );

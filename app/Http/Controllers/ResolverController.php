@@ -79,12 +79,15 @@ class ResolverController extends Controller
 
         $this->scans->log($passport, $request, $locale);
 
-        // Content negotiation: machines asking for JSON-LD get structured data.
+        // Content negotiation: machines asking for JSON-LD get structured data. The ETag is
+        // the hash of exactly this rendered per-locale payload (translations included) --
+        // rendered['content_hash'] alone only verifies the source-language master record.
         if ($this->wantsJsonLd($request)) {
             return response()->json($snapshot->rendered)
                 ->header('Content-Type', 'application/ld+json')
                 ->header('Cache-Control', 'public, max-age=300')
-                ->header('Vary', 'Accept, Accept-Language');
+                ->header('Vary', 'Accept, Accept-Language')
+                ->header('ETag', '"'.$snapshot->etag.'"');
         }
 
         app()->setLocale($locale); // page chrome (lang/{locale}/public.php)
@@ -92,6 +95,7 @@ class ResolverController extends Controller
         return response()
             ->view('public.passport', [
                 'p' => $snapshot->rendered,
+                'etag' => $snapshot->etag,
                 'localeUrls' => count($available) > 1
                     ? collect($available)->mapWithKeys(fn ($l) => [$l => $request->fullUrlWithQuery(['lang' => $l])])->all()
                     : [],

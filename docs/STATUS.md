@@ -9,7 +9,7 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started · ⏸️ deferred (late
 ## Resume here (paused 2026-07-01)
 
 **Where it stands:** the SaaS shell and DPP core loop are working end to end and reviewed
-(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 171 tests pass.
+(~9/10). Live at `https://dpp.vdisain.ovh`. Latest on `Nilszv/DPP` `main`. 173 tests pass.
 
 **Just landed: manual per-locale content translations.** The public-layer i18n translated
 labels/chrome only; now the field **values** themselves can be translated -- by the
@@ -25,9 +25,17 @@ conjure a field whose BASE value is empty (no one-locale-only content). `content
 deliberately keeps covering only the base `data`: the source-language record is the legally
 binding master; translations are supplementary renderings (each snapshot carries its own
 etag). Pre-existing versions have `translations = null`, which is exactly the old behavior --
-no backfill needed. 5 tests (`PassportContentTranslationTest`). Also fixed this session's
+no backfill needed. 7 tests (`PassportContentTranslationTest`). Also fixed this session's
 review P2: audit-page date filters now reject impossible calendar dates (2026-02-31) via
-`checkdate()`, not just shape-checking.
+`checkdate()`, not just shape-checking. (2026-07-02, follow-up review P2 fix: the public page
+displayed the base-data hash as "Verified content hash" while showing translated values, so a
+translation-only correction changed visible content without moving the displayed hash. The
+page now shows BOTH guarantees: the base hash relabeled "Source record hash (original
+language)" and the per-locale snapshot **etag** as "Verified hash of this page's content" --
+the etag is the hash of exactly the rendered payload, translations included. JSON-LD responses
+carry the etag as a proper `ETag` header. Correction audit rows gained
+`from/to_translations_hash` so a translation-only correction is distinguishable from a no-op
+even though its content hashes tie. Regression-tested end-to-end.)
 
 **Just landed: admin audit-trail browser (`/admin/audit`).** Read-only, filterable surface
 over the append-only `audit_log` (which now has real content: impersonation starts/stops and

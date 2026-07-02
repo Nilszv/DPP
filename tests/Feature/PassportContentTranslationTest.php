@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\Passport;
 use App\Models\Product;
@@ -144,6 +145,62 @@ class PassportContentTranslationTest extends TestCase
 
         $this->get("/p/{$passport->public_id}?lang=en")->assertSee('Corrected Shirt');
         $this->get("/p/{$passport->public_id}?lang=lv")->assertSee('Krekls');
+    }
+
+    public function test_translation_only_correction_changes_the_page_hash_and_is_audited(): void
+    {
+        $passport = $this->draftPassport();
+        $this->actingAs($this->user)->put(route('passports.update', $passport), [
+            'fields' => ['product_name' => 'Krekls', 'manufacturer' => 'Acme'],
+            'translations' => ['en' => ['product_name' => 'Shirt']],
+        ]);
+        $this->post(route('passports.publish', $passport));
+        $passport->refresh();
+
+        $snapshotBefore = $passport->snapshots()->where('audience', 'consumer')->where('locale', 'en')->first();
+        $hashBefore = $passport->currentVersion->content_hash;
+
+        // Correction changing ONLY the EN translation -- the base data is untouched.
+        $this->post(route('passports.corrections.start', $passport));
+        $this->put(route('passports.update', $passport), [
+            'fields' => ['product_name' => 'Krekls', 'manufacturer' => 'Acme'],
+            'translations' => ['en' => ['product_name' => 'Reworded Shirt']],
+        ]);
+        $this->post(route('passports.corrections.publish', $passport))->assertSessionHas('status');
+        $passport->refresh();
+
+        // The base record is byte-identical, so its hash must not move...
+        $this->assertSame($hashBefore, $passport->currentVersion->content_hash);
+
+        // ...but the EN page's own verified hash (the snapshot etag) must: what the buyer
+        // sees changed, and the displayed hash has to verify it (review P2).
+        $snapshotAfter = $passport->snapshots()->where('audience', 'consumer')->where('locale', 'en')->first();
+        $this->assertNotSame($snapshotBefore->etag, $snapshotAfter->etag);
+        $this->get("/p/{$passport->public_id}?lang=en")
+            ->assertSee('Reworded Shirt')
+            ->assertSee(substr($snapshotAfter->etag, 0, 16))
+            ->assertDontSee(substr($snapshotBefore->etag, 0, 16));
+
+        // And the audit row records the translation change even though the content hashes tie.
+        $audit = AuditLog::where('action', 'passport.correction.published')->first();
+        $this->assertSame($audit->meta['from_content_hash'], $audit->meta['to_content_hash']);
+        $this->assertNotSame($audit->meta['from_translations_hash'], $audit->meta['to_translations_hash']);
+    }
+
+    public function test_json_ld_carries_the_per_locale_etag_header(): void
+    {
+        $passport = $this->draftPassport();
+        $this->actingAs($this->user)->put(route('passports.update', $passport), [
+            'fields' => ['product_name' => 'Krekls', 'manufacturer' => 'Acme'],
+        ]);
+        $this->post(route('passports.publish', $passport));
+        $passport->refresh();
+
+        $etag = $passport->snapshots()->where('audience', 'consumer')->where('locale', 'en')->value('etag');
+
+        $this->get("/p/{$passport->public_id}?format=json&lang=en")
+            ->assertOk()
+            ->assertHeader('ETag', '"'.$etag.'"');
     }
 
     private function draftPassport(): Passport

@@ -9,7 +9,8 @@ return [
     'viewing' => 'Viewing: :audience information',
     'no_details' => 'No public details are available for this product.',
     'identifier' => 'Identifier',
-    'verified_content_hash' => 'Verified content hash',
+    'source_record_hash' => 'Source record hash (original language)',
+    'page_content_hash' => 'Verified hash of this page\'s content',
     'language' => 'Language',
 
     'audiences' => [

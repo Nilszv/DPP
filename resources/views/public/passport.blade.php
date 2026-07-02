@@ -42,7 +42,10 @@
         <hr>
         <p class="muted">
             {{ __('public.identifier') }}: <code>{{ $p['identifier']['public_id'] ?? '' }}</code><br>
-            {{ __('public.verified_content_hash') }}: <code>{{ substr($p['content_hash'] ?? '', 0, 16) }}...</code>
+            {{-- Two distinct guarantees: the locked source-language master record, and the
+                 exact per-locale payload this page renders (translations included). --}}
+            {{ __('public.source_record_hash') }}: <code>{{ substr($p['content_hash'] ?? '', 0, 16) }}...</code><br>
+            {{ __('public.page_content_hash') }}: <code>{{ substr($etag ?? '', 0, 16) }}...</code>
         </p>
     </main>
 </body>
