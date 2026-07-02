@@ -40,7 +40,9 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo, pdo_pgsql, pgsql, mbstring, gd
+          # imagick declared explicitly (QR PNG export + its tests): the runner image happens
+          # to preinstall it, but an undeclared dependency breaks silently on image updates.
+          extensions: pdo, pdo_pgsql, pgsql, mbstring, gd, imagick
           coverage: none
 
       - name: Enable Postgres extensions
